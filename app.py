@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Cambiamos el nombre de la DB para forzar una estructura limpia
-DB_PATH = '/tmp/ordoklar_v8.db'
+# Cambiamos el nombre de la DB para asegurar que no haya conflictos de tablas viejas
+DB_PATH = '/tmp/ordoklar_v9.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -19,6 +19,7 @@ def get_db_connection():
 
 @app.route('/')
 def index():
+    # El parámetro v=9 fuerza al navegador a refrescar el diseño
     return render_template_string(HTML_UI)
 
 # --- APIs PERSONAL ---
@@ -45,26 +46,6 @@ def edit_del_personal(id):
     conn.close()
     return jsonify({"s": "ok"})
 
-# --- APIs PUESTOS ---
-@app.route('/api/puestos', methods=['GET', 'POST'])
-def handle_puestos():
-    conn = get_db_connection()
-    if request.method == 'POST':
-        d = request.json
-        conn.execute("INSERT INTO puestos (nombre, cantidad) VALUES (?, ?)", (d['nombre'], d['cantidad']))
-        conn.commit()
-    res = [dict(row) for row in conn.execute("SELECT * FROM puestos").fetchall()]
-    conn.close()
-    return jsonify(res)
-
-@app.route('/api/puestos/<int:id>', methods=['DELETE'])
-def del_puesto(id):
-    conn = get_db_connection()
-    conn.execute("DELETE FROM puestos WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"s": "ok"})
-
 # --- API NOVEDADES ---
 @app.route('/api/novedades', methods=['GET', 'POST'])
 def handle_novedades():
@@ -77,56 +58,163 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ PROFESIONAL ---
+# --- INTERFAZ REDISEÑADA ---
 HTML_UI = '''
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR | Panel v8</title>
+    <title>ORDO KLAR | Panel Profesional</title>
     <style>
-        :root { --gold: #C5A059; --bg: #050505; --card: #121212; --gray: #222; }
-        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; }
+        :root { --gold: #C5A059; --bg: #050505; --card: #121212; --border: #222; }
+        body { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; margin: 0; }
         
-        .header { text-align: center; padding: 15px; font-size: 22px; letter-spacing: 8px; border-bottom: 1px solid var(--gray); background: #000; }
+        .top-bar { text-align: center; padding: 20px; font-size: 22px; letter-spacing: 8px; border-bottom: 1px solid var(--border); }
         
-        .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 1px solid var(--gold); margin-bottom: 10px; }
-        .nav button { background: none; border: none; color: #777; padding: 15px 25px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; }
-        .nav button.active { color: var(--gold); border-bottom: 2px solid var(--gold); }
+        .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 2px solid var(--gold); }
+        .nav button { background: none; border: none; color: #666; padding: 15px 30px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; }
+        .nav button.active { color: var(--gold); }
 
-        .container { padding: 10px; }
+        .content { padding: 15px; }
         .section { display: none; }
         .active { display: block; }
 
-        /* PLANILLA COMPACTA */
-        .wrapper { width: 100%; overflow: hidden; }
-        table.pla { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; background: #000; }
-        .pla th, .pla td { border: 1px solid #222; text-align: center; height: 32px; padding: 0; }
-        .pla th { color: var(--gold); font-weight: normal; background: #111; }
-        .col-nombre { width: 100px; text-align: left !important; padding-left: 5px !important; color: var(--gold); font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .col-hs { width: 35px; background: #1a1a1a; color: var(--gold); font-weight: bold; border-left: 1px solid var(--gold) !important; font-size: 11px; }
-
-        /* SELECTORES Y COLORES */
-        select { background: transparent; color: #fff; border: none; width: 100%; height: 100%; cursor: pointer; font-weight: bold; text-align-last: center; outline: none; appearance: none; }
-        .st-12 { background: #1b5e20 !important; } /* Verde */
-        .st-F { background: #333 !important; }    /* Gris */
-        .st-VAC { background: #01579b !important; } /* Azul */
-        .st-ART { background: #b71c1c !important; } /* Rojo */
-
-        /* PERSONAL */
-        .card { background: var(--card); border: 1px solid var(--gray); padding: 15px; border-radius: 6px; margin-bottom: 15px; }
-        input { background: #000; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; margin-right: 5px; font-size: 12px; }
-        .btn-gold { background: var(--gold); color: #000; border: none; padding: 8px 15px; font-weight: bold; border-radius: 4px; cursor: pointer; }
-        .btn-edit { color: var(--gold); border: 1px solid var(--gold); background: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 10px; margin-right: 5px; }
-        .btn-del { color: #ff4444; border: 1px solid #ff4444; background: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 10px; }
+        /* PLANILLA MENSUAL COMPACTA CON COLUMNA HS */
+        .scroll-container { width: 100%; overflow: hidden; border: 1px solid var(--border); }
+        table.main-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
+        .main-table th, .main-table td { border: 1px solid #1a1a1a; text-align: center; height: 35px; }
+        .main-table th { background: #111; color: var(--gold); font-weight: normal; }
         
-        .list-table { width: 100%; border-collapse: collapse; }
-        .list-table td { padding: 12px; border-bottom: 1px solid var(--gray); font-size: 13px; }
+        .name-cell { width: 100px; text-align: left !important; padding-left: 8px; color: var(--gold); font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .hs-cell { width: 40px; background: #1a1a1a; color: var(--gold); font-weight: bold; border-left: 2px solid var(--gold) !important; font-size: 11px; }
+
+        /* COLORES ASISTENCIA */
+        select { background: transparent; color: #fff; border: none; width: 100%; height: 100%; cursor: pointer; text-align-last: center; font-weight: bold; outline: none; appearance: none; }
+        .st-12 { background: #1b5e20 !important; }
+        .st-F { background: #333 !important; }
+        .st-VAC { background: #01579b !important; }
+        .st-ART { background: #b71c1c !important; }
+
+        /* SECCION PERSONAL */
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .btn-gold { background: var(--gold); color: #000; border: none; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+        .btn-edit { color: var(--gold); border: 1px solid var(--gold); background: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 10px; }
+        
+        input { background: #000; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 4px; margin-right: 10px; }
     </style>
 </head>
 <body>
-    <div class="header">ORDO <span style="color:var(--gold)">KLAR</span></div>
+    <div class="top-bar">ORDO <span style="color:var(--gold)">KLAR</span></div>
     
     <div class="nav">
-        <button id="b1" class="active" onclick="show('pla')">Planilla Mensual</button>
-        <button id="b2" onclick="show('
+        <button id="nav-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
+        <button id="nav-per" onclick="tab('per')">Personal</button>
+    </div>
+
+    <div class="content">
+        <!-- PLANILLA -->
+        <div id="sec-pla" class="section active">
+            <div class="scroll-container">
+                <table class="main-table">
+                    <thead id="head-pla"></thead>
+                    <tbody id="body-pla"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PERSONAL -->
+        <div id="sec-per" class="section">
+            <div class="card">
+                <input type="text" id="in-leg" placeholder="Legajo">
+                <input type="text" id="in-ape" placeholder="Apellido">
+                <input type="text" id="in-nom" placeholder="Nombre">
+                <button class="btn-gold" onclick="addPersonal()">REGISTRAR</button>
+            </div>
+            <div id="list-per"></div>
+        </div>
+    </div>
+
+    <script>
+        function tab(t) {
+            document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
+            document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
+            document.getElementById('sec-'+t).classList.add('active');
+            document.getElementById('nav-'+t).classList.add('active');
+        }
+
+        async function init() {
+            const [p, n] = await Promise.all([
+                fetch('/api/personal').then(r => r.json()),
+                fetch('/api/novedades').then(r => r.json())
+            ]);
+
+            // 1. GESTION PERSONAL (CON EDITAR)
+            document.getElementById('list-per').innerHTML = p.map(x => `
+                <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:10px 20px;">
+                    <span><b>${x.legajo}</b> - ${x.apellido.toUpperCase()}, ${x.nombre}</span>
+                    <div>
+                        <button class="btn-edit" onclick="editPersonal(${x.id},'${x.nombre}','${x.apellido}','${x.legajo}')">EDITAR</button>
+                        <button style="color:red; background:none; border:none; cursor:pointer;" onclick="delPersonal(${x.id})">ELIMINAR</button>
+                    </div>
+                </div>`).join('');
+
+            // 2. PLANILLA (HS Y AUTO-AJUSTE)
+            const dias = new Date(2026, 5, 0).getDate(); // Mayo 2026
+            let h = '<tr><th class="name-cell">Personal</th>';
+            for(let i=1; i<=dias; i++) h += `<th>${i}</th>`;
+            h += '<th class="hs-cell">HS</th></tr>';
+            document.getElementById('head-pla').innerHTML = h;
+
+            document.getElementById('body-pla').innerHTML = p.map(per => {
+                let r = `<td class="name-cell">${per.apellido.toUpperCase()}</td>`;
+                let totalHs = 0;
+                for(let i=1; i<=dias; i++) {
+                    const fecha = `2026-05-${String(i).padStart(2,'0')}`;
+                    const data = n.find(x => x.personal_id == per.id && x.fecha == fecha);
+                    const est = data ? data.estado : 'F';
+                    if(est == '12') totalHs += 12;
+                    r += `<td class="st-${est}">
+                        <select onchange="updateNov(${per.id},'${fecha}',this.value)">
+                            <option value="12" ${est=='12'?'selected':''}>12</option>
+                            <option value="F" ${est=='F'?'selected':''}>F</option>
+                            <option value="VAC" ${est=='VAC'?'selected':''}>V</option>
+                            <option value="ART" ${est=='ART'?'selected':''}>A</option>
+                        </select>
+                    </td>`;
+                }
+                return `<tr>${r}<td class="hs-cell">${totalHs}</td></tr>`;
+            }).join('');
+        }
+
+        async function editPersonal(id, n, a, l) {
+            const na = prompt("Apellido:", a);
+            const nn = prompt("Nombre:", n);
+            const nl = prompt("Legajo:", l);
+            if(na && nn) {
+                await fetch('/api/personal/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:nn, apellido:na, legajo:nl}) });
+                init();
+            }
+        }
+
+        async function updateNov(pid, f, e) {
+            await fetch('/api/novedades', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:f, estado:e}) });
+            init();
+        }
+
+        async function addPersonal() {
+            const d = {nombre:document.getElementById('in-nom').value, apellido:document.getElementById('in-ape').value, legajo:document.getElementById('in-leg').value};
+            await fetch('/api/personal', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) });
+            init();
+        }
+
+        async function delPersonal(id) { if(confirm("¿Eliminar?")) { await fetch('/api/personal/'+id, {method:'DELETE'}); init(); } }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
+'''
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
