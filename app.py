@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Base de datos v22
-DB_PATH = '/tmp/ordoklar_v22.db'
+# Base de datos v23
+DB_PATH = '/tmp/ordoklar_v23.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -21,7 +21,7 @@ def get_db_connection():
 def index():
     return render_template_string(HTML_UI)
 
-# --- APIs PUESTOS ---
+# --- APIs Mantenidas ---
 @app.route('/api/puestos', methods=['GET', 'POST'])
 def handle_puestos():
     conn = get_db_connection()
@@ -44,7 +44,6 @@ def delete_puesto(id):
     conn.close()
     return jsonify({"status": "deleted"})
 
-# --- APIs PERSONAL ---
 @app.route('/api/personal', methods=['GET', 'POST'])
 def handle_personal():
     conn = get_db_connection()
@@ -67,29 +66,28 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ COMPLETA ---
+# --- INTERFAZ v23 ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ORDO KLAR | Gestión Operativa</title>
+    <title>ORDO KLAR | Gestión Profesional</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root { --gold: #D4AF37; --bg: #000; --card: #151515; --border: #333; }
         body { background: var(--bg); color: #FFF; font-family: 'Segoe UI', sans-serif; margin: 0; }
         
+        /* HEADER WEB */
         .header-web { text-align: center; padding: 20px; font-size: 26px; font-weight: 900; letter-spacing: 8px; border-bottom: 2px solid var(--gold); }
         
-        /* ENCABEZADO DE REPORTE - CONFIGURACIÓN DE LOGOS */
-        .report-header { display: none; justify-content: space-between; align-items: center; padding: 10px 30px; border-bottom: 3px solid #000; margin-bottom: 20px; color: #000; background: #fff; }
+        /* REPORTE OFICIAL (PDF/PRINT) */
+        .report-header { display: none; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 3px solid #000; margin-bottom: 20px; color: #000; background: #fff; }
         .report-header img { height: 80px; width: auto; object-fit: contain; }
         .report-title { text-align: center; flex: 1; }
-        .report-title h1 { margin: 0; font-size: 22px; text-transform: uppercase; font-weight: 900; }
-        .report-title p { margin: 5px 0 0 0; font-weight: bold; font-size: 16px; }
+        .report-title h1 { margin: 0; font-size: 22px; text-transform: uppercase; }
 
-        /* NAVEGACIÓN */
         .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1000; }
         .nav button { background: none; border: none; color: #AAA; padding: 15px 25px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
         .nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
@@ -98,35 +96,32 @@ HTML_UI = '''
         .section { display: none; }
         .active { display: block; }
 
-        /* BOTONES Y ACCIONES */
-        .actions-bar { display: flex; gap: 15px; margin-bottom: 20px; padding: 15px; background: #111; border-radius: 8px; justify-content: center; align-items: center; }
+        .actions-bar { display: flex; gap: 15px; margin-bottom: 20px; padding: 15px; background: #111; border-radius: 8px; justify-content: center; border: 1px solid #222; }
         .btn-action { padding: 12px 18px; border-radius: 6px; font-weight: 900; cursor: pointer; border: none; text-transform: uppercase; font-size: 11px; display: flex; align-items: center; gap: 8px; }
         .btn-pdf { background: #2E7D32; color: white; }
-        .btn-print { background: #1565C0; color: white; }
         .btn-gold { background: var(--gold); color: black; }
 
-        /* TABLAS Y FORMULARIOS */
         .form-box { background: var(--card); padding: 20px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 20px; }
         .form-box input { background: #000; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 5px; margin: 5px; }
+
         .table-wrap { overflow-x: auto; border-radius: 12px; border: 2px solid var(--border); background: #000; }
         table { border-collapse: collapse; min-width: 1200px; width: 100%; }
-        th, td { border: 1px solid #222; text-align: center; font-size: 14px; padding: 8px; }
-        .name-col { width: 200px; text-align: left !important; color: var(--gold); font-weight: 800; position: sticky; left: 0; background: #111; z-index: 20; border-right: 3px solid var(--gold) !important; }
-        
-        .card-puesto { background: #151515; border-left: 5px solid var(--gold); padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .list-item { background: #111; padding: 12px; border-bottom: 1px solid #222; font-size: 16px; display: flex; gap: 30px; }
+        th, td { border: 1px solid #222; text-align: center; padding: 8px; font-size: 13px; }
+        .name-col { width: 220px; text-align: left !important; color: var(--gold); font-weight: 800; position: sticky; left: 0; background: #111; z-index: 20; border-right: 3px solid var(--gold) !important; }
+        .row-total { background: #111; font-weight: bold; color: var(--gold); }
 
-        /* CSS PARA IMPRESIÓN */
+        .card-puesto { background: #151515; border-left: 5px solid var(--gold); padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .list-item { background: #111; padding: 12px; border-bottom: 1px solid #222; display: flex; gap: 40px; }
+
         @media print {
             .no-print, .nav, .header-web, .form-box { display: none !important; }
-            body { background: #FFF; color: #000; margin: 0; }
+            body { background: #FFF; color: #000; }
             .report-header { display: flex !important; }
             .section { display: block !important; }
-            .active { display: block !important; }
-            table { color: #000 !important; border: 1px solid #000 !important; width: 100% !important; min-width: 100% !important; }
+            table { color: #000 !important; border: 1px solid #000 !important; width: 100% !important; }
             th, td { border: 1px solid #000 !important; color: #000 !important; }
-            .name-col { background: #f0f0f0 !important; color: #000 !important; }
-            .list-item { color: #000; border-bottom: 1px solid #000; background: #fff; }
+            .name-col { background: #eee !important; color: #000 !important; }
+            .row-total { background: #eee !important; color: #000 !important; }
         }
     </style>
 </head>
@@ -140,42 +135,43 @@ HTML_UI = '''
         <button id="n-per" onclick="tab('per')">Personal</button>
     </div>
 
-    <!-- ENCABEZADO DE REPORTE OFICIAL -->
+    <!-- ENCABEZADO OFICIAL PDF -->
     <div id="report-header-ui" class="report-header">
-        <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/TANDANOR.PNG" alt="Logo Tandanor">
+        <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/TANDANOR.PNG" alt="Tandanor">
         <div class="report-title">
-            <h1 id="rt-titulo">INFORME</h1>
+            <h1 id="rt-titulo">INFORME DE SERVICIO</h1>
             <p id="rt-subtitulo">SUBTÍTULO</p>
         </div>
-        <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/WATCHMAN.SVG" alt="Logo Watchman">
+        <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/WATCHMAN.SVG" alt="Watchman">
     </div>
 
     <div class="content">
-        <!-- PLANILLA MENSUAL -->
+        <!-- PLANILLA -->
         <div id="s-pla" class="section active">
             <div class="actions-bar no-print">
                 <select id="sel-mes" onchange="render()"></select>
                 <select id="sel-anio" onchange="render()"></select>
-                <button class="btn-action btn-pdf" onclick="exportarPDF()">📄 GENERAR INFORME MENSUAL</button>
+                <button class="btn-action btn-pdf" onclick="pdfPlanilla()">📄 INFORME MENSUAL (PDF)</button>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead id="h-pla"></thead>
                     <tbody id="b-pla"></tbody>
+                    <tfoot id="f-pla"></tfoot>
                 </table>
             </div>
         </div>
 
-        <!-- PUESTOS / GUARDIAS -->
+        <!-- PUESTOS -->
         <div id="s-pue" class="section">
             <div class="actions-bar no-print">
-                <button class="btn-action btn-print" onclick="imprimirPuestos()">🖨️ IMPRIMIR GUARDIAS</button>
+                <button class="btn-action btn-pdf" onclick="pdfPuestos()">📄 DESCARGAR PDF GUARDIAS</button>
             </div>
             <div class="form-box no-print">
                 <input type="hidden" id="p-id">
-                <input type="text" id="p-nom" placeholder="Puesto">
+                <input type="text" id="p-nom" placeholder="Nombre Puesto">
                 <input type="text" id="p-hor" placeholder="Horario">
-                <input type="number" id="p-can" placeholder="Cant.">
+                <input type="number" id="p-can" placeholder="Dotación">
                 <button class="btn-action btn-gold" onclick="savePuesto()">GUARDAR</button>
             </div>
             <div id="g-pue"></div>
@@ -184,7 +180,7 @@ HTML_UI = '''
         <!-- PERSONAL -->
         <div id="s-per" class="section">
             <div class="actions-bar no-print">
-                <button class="btn-action btn-print" onclick="imprimirPersonal()">🖨️ IMPRIMIR PLANILLA PERSONAL</button>
+                <button class="btn-action btn-pdf" onclick="pdfPersonal()">📄 DESCARGAR PDF PERSONAL</button>
             </div>
             <div class="form-box no-print">
                 <input type="text" id="i-leg" placeholder="Legajo">
@@ -226,87 +222,101 @@ HTML_UI = '''
             const anio = document.getElementById('sel-anio').value;
             const cantDias = new Date(anio, mes, 0).getDate();
 
-            // Planilla
+            // Render Cabecera Planilla
             let h = `<tr><th class="name-col">PERSONAL</th>`;
             for(let i=1; i<=cantDias; i++) h += `<th>${i}</th>`;
-            h += '<th>TOTAL</th></tr>';
+            h += '<th>TOT</th></tr>';
             document.getElementById('h-pla').innerHTML = h;
+
+            // Render Cuerpo y Totales
+            let colHs = new Array(cantDias).fill(0);
+            let colPer = new Array(cantDias).fill(0);
 
             document.getElementById('b-pla').innerHTML = per.map(p => {
                 let r = `<td class="name-col">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
-                let hs = 0;
+                let hsFila = 0;
                 for(let i=1; i<=cantDias; i++) {
                     const f = `${anio}-${String(mes).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const d = nov.find(x => x.personal_id == p.id && x.fecha == f);
                     const st = d ? d.estado : 'F';
-                    if(st == '12') hs += 12;
+                    if(st == '12') { 
+                        hsFila += 12; 
+                        colHs[i-1] += 12; 
+                        colPer[i-1] += 1; 
+                    }
                     r += `<td><select class="no-print" onchange="updNov(${p.id},'${f}',this.value)" style="background:transparent; color:white; border:none;">
                         <option value="12" ${st=='12'?'selected':''}>12</option>
                         <option value="F" ${st=='F'?'selected':''}>F</option>
                         <option value="VAC" ${st=='VAC'?'selected':''}>V</option>
                     </select><span class="only-print" style="display:none">${st}</span></td>`;
                 }
-                return `<tr>${r}<td>${hs}</td></tr>`;
+                return `<tr>${r}<td>${hsFila}</td></tr>`;
             }).join('');
 
-            // Puestos
+            // Pie de tabla: Totales
+            let f1 = `<tr class="row-total"><td class="name-col">CANT HS POR DIA</td>`;
+            colHs.forEach(v => f1 += `<td>${v}</td>`);
+            f1 += `<td>-</td></tr>`;
+
+            let f2 = `<tr class="row-total"><td class="name-col">CANT DE PERSONAL</td>`;
+            colPer.forEach(v => f2 += `<td>${v}</td>`);
+            f2 += `<td>-</td></tr>`;
+
+            document.getElementById('f-pla').innerHTML = f1 + f2;
+
+            // Render Puestos y Personal List
             document.getElementById('g-pue').innerHTML = pue.map(p => `
                 <div class="card-puesto">
-                    <div><b>${p.nombre.toUpperCase()}</b><br><small>${p.horario} - Dotación: ${p.cantidad}</small></div>
-                    <div class="no-print">
-                        <button onclick='editPuesto(${JSON.stringify(p)})'>EDITAR</button>
-                        <button onclick="deletePuesto(${p.id})">X</button>
-                    </div>
-                </div>
-            `).join('');
+                    <div><b>${p.nombre.toUpperCase()}</b><br><small>${p.horario} | Dotación: ${p.cantidad}</small></div>
+                    <div class="no-print"><button onclick='editPuesto(${JSON.stringify(p)})'>EDITAR</button></div>
+                </div>`).join('');
 
-            // Personal
             document.getElementById('l-per').innerHTML = per.map(p => `
                 <div class="list-item"><span><b>${p.legajo}</b></span> <span>${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}</span></div>
             `).join('');
         }
 
-        // --- FUNCIONES DE IMPRESIÓN ---
-        function imprimirPersonal() {
-            document.getElementById('rt-titulo').innerText = "PLANILLA DE PERSONAL";
-            document.getElementById('rt-subtitulo').innerText = "REGISTRO DE NOMBRE, APELLIDO Y LEGAJO";
-            window.print();
-        }
-
-        function imprimirPuestos() {
-            const d = new Date();
-            document.getElementById('rt-titulo').innerText = "GUARDIAS";
-            document.getElementById('rt-subtitulo').innerText = `${d.getDate()} / ${meses[d.getMonth()].toUpperCase()} / ${d.getFullYear()}`;
-            window.print();
-        }
-
-        function exportarPDF() {
-            const m = meses[document.getElementById('sel-mes').value - 1];
-            const a = document.getElementById('sel-anio').value;
-            document.getElementById('rt-titulo').innerText = "PLANILLA MENSUAL";
-            document.getElementById('rt-subtitulo').innerText = `${m.toUpperCase()} ${a}`;
+        // --- FUNCIONES PDF (v23 ACTUALIZADAS) ---
+        function genericPDF(titulo, subtitulo, filename, orientation='portrait') {
+            document.getElementById('rt-titulo').innerText = titulo;
+            document.getElementById('rt-subtitulo').innerText = subtitulo;
+            document.getElementById('report-header-ui').style.display = 'flex';
             
             const element = document.body;
             const opt = {
                 margin: 5,
-                filename: `Planilla_${m}_${a}.pdf`,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2 },
-                jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' }
+                jsPDF: { unit: 'mm', format: orientation == 'landscape' ? 'a3' : 'a4', orientation: orientation }
             };
-            document.getElementById('report-header-ui').style.display = 'flex';
+
             html2pdf().set(opt).from(element).save().then(() => {
                 document.getElementById('report-header-ui').style.display = 'none';
             });
         }
 
-        // --- LOGICA DB ---
+        function pdfPlanilla() {
+            const m = meses[document.getElementById('sel-mes').value - 1];
+            const a = document.getElementById('sel-anio').value;
+            genericPDF("PLANILLA MENSUAL DE NOVEDADES", `${m.toUpperCase()} ${a}`, `Planilla_${m}.pdf`, 'landscape');
+        }
+
+        function pdfPuestos() {
+            const n = new Date();
+            genericPDF("ESTADO DE GUARDIAS / PUESTOS", `${n.toLocaleDateString()}`, "Reporte_Guardias.pdf");
+        }
+
+        function pdfPersonal() {
+            genericPDF("PLANILLA DE PERSONAL REGISTRADO", "NOMINA GENERAL", "Nomina_Personal.pdf");
+        }
+
+        // --- CRUD LOGIC ---
         async function savePuesto() {
             const d = { id:document.getElementById('p-id').value, nombre:document.getElementById('p-nom').value, horario:document.getElementById('p-hor').value, cantidad:document.getElementById('p-can').value };
             await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
             render();
         }
-        async function deletePuesto(id) { await fetch(`/api/puestos/${id}`, {method:'DELETE'}); render(); }
-        function editPuesto(p) { document.getElementById('p-id').value=p.id; document.getElementById('p-nom').value=p.nombre; document.getElementById('p-hor').value=p.horario; document.getElementById('p-can').value=p.cantidad; }
         async function addPersonal() {
             const d = {nombre:document.getElementById('i-nom').value, apellido:document.getElementById('i-ape').value, legajo:document.getElementById('i-leg').value};
             await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
