@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Base de datos v17
-DB_PATH = '/tmp/ordoklar_v17.db'
+# Base de datos v18
+DB_PATH = '/tmp/ordoklar_v18.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -21,7 +21,7 @@ def get_db_connection():
 def index():
     return render_template_string(HTML_UI)
 
-# --- APIs (Mantenidas) ---
+# --- APIs ---
 @app.route('/api/puestos', methods=['GET', 'POST'])
 def handle_puestos():
     conn = get_db_connection()
@@ -55,84 +55,105 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ CON FUNCIONES DE REPORTE ---
+# --- INTERFAZ ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ORDO KLAR | Gestión & Reportes</title>
-    <!-- Librería para PDF -->
+    <title>ORDO KLAR | Gestión Operativa</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root { --gold: #D4AF37; --bg: #000; --card: #151515; --border: #333; --cyan: #00FBFF; }
-        
         body { background: var(--bg); color: #FFF; font-family: 'Segoe UI', sans-serif; margin: 0; }
         
-        /* Estilos de Impresión */
-        @media print {
-            .nav, .header, .btn-gold, .form-box, .no-print { display: none !important; }
-            body { background: #FFF; color: #000; }
-            .card { border: 1px solid #000 !important; color: #000 !important; page-break-inside: avoid; }
-            .name-col { background: #EEE !important; color: #000 !important; border-right: 1px solid #000 !important; }
-            table { font-size: 10px !important; color: #000; }
-            th { background: #DDD !important; color: #000 !important; }
-        }
-
         .header { text-align: center; padding: 20px; font-size: 26px; font-weight: 900; letter-spacing: 8px; border-bottom: 2px solid var(--gold); }
         .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1000; }
-        .nav button { background: none; border: none; color: #AAA; padding: 15px 25px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
-        .nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
+        .nav button { background: none; border: none; color: #AAA; padding: 15px 25px; cursor: pointer; font-weight: bold; text-transform: uppercase; font-size: 13px; }
+        .nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); background: #111; }
         
         .content { padding: 20px; }
         .section { display: none; }
         .active { display: block; }
 
-        /* Botonera de Acciones */
-        .actions-bar { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
-        .btn-report { background: #2E7D32; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .btn-print { background: #1565C0; color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        /* BARRA DE ACCIONES */
+        .actions-bar { 
+            display: flex; 
+            gap: 15px; 
+            margin-bottom: 25px; 
+            padding: 15px; 
+            background: #111; 
+            border-radius: 8px; 
+            border: 1px solid #222;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-action { 
+            padding: 12px 24px; 
+            border-radius: 6px; 
+            font-weight: 900; 
+            cursor: pointer; 
+            border: none; 
+            text-transform: uppercase;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-pdf { background: #2E7D32; color: white; } /* Verde */
+        .btn-print { background: #1565C0; color: white; } /* Azul */
+        .btn-gold { background: var(--gold); color: black; }
 
         /* TABLA */
-        .table-wrap { overflow-x: auto; border-radius: 12px; background: #0a0a0a; border: 1px solid var(--border); }
+        .table-wrap { overflow-x: auto; border-radius: 12px; background: #0a0a0a; border: 2px solid var(--border); }
         table { border-collapse: collapse; min-width: 1300px; width: 100%; }
-        th, td { border: 1px solid #222; text-align: center; font-size: 15px; }
-        th { background: #111; color: var(--gold); padding: 10px; }
+        th, td { border: 1px solid #222; text-align: center; font-size: 16px; }
+        th { background: #111; color: var(--gold); padding: 12px; }
         
-        .day-name { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 12px; font-weight: 800; margin-bottom: 5px; display: inline-block; }
-        .name-col { width: 180px; text-align: left !important; padding-left: 15px; color: var(--gold); font-weight: 800; height: 50px; position: sticky; left: 0; background: #111; z-index: 20; border-right: 3px solid var(--gold) !important; }
+        .day-name { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 13px; font-weight: 800; color: #FFF; }
+        .name-col { width: 200px; text-align: left !important; padding-left: 15px; color: var(--gold); font-weight: 800; height: 55px; position: sticky; left: 0; background: #111; z-index: 20; border-right: 3px solid var(--gold) !important; }
         
-        .total-hs { background: #000; color: var(--gold); font-weight: 900; height: 55px; }
-        .total-per { background: #000; color: var(--cyan); font-weight: 900; height: 55px; }
+        .total-hs { background: #000; color: var(--gold); font-weight: 900; height: 60px; font-size: 18px; }
+        .total-per { background: #000; color: var(--cyan); font-weight: 900; height: 60px; font-size: 18px; }
 
-        select.cell-sel { background: transparent; color: #FFF; border: none; width: 100%; height: 50px; text-align-last: center; font-weight: 900; font-size: 15px; appearance: none; }
+        select.cell-sel { background: transparent; color: #FFF; border: none; width: 100%; height: 55px; text-align-last: center; font-weight: 900; font-size: 16px; appearance: none; cursor: pointer; }
         .st-12 { background: #1B5E20 !important; } .st-F { background: #424242 !important; } .st-VAC { background: #0D47A1 !important; } .st-ART { background: #B71C1C !important; }
 
-        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid var(--gold); }
+        /* PUESTOS CARDS */
+        .card-puesto { background: #151515; border-left: 6px solid var(--gold); padding: 20px; margin-bottom: 15px; border-radius: 8px; border-top: 1px solid #333; }
+
+        /* IMPRESION */
+        @media print {
+            .no-print, .nav, .header { display: none !important; }
+            body { background: white; color: black; }
+            .section { display: block !important; }
+            .card-puesto { border: 1px solid black !important; color: black !important; page-break-inside: avoid; }
+            .name-col { background: #eee !important; color: black !important; }
+            table { min-width: auto !important; width: 100% !important; font-size: 10px !important; }
+        }
     </style>
 </head>
 <body>
     <div class="header">ORDO <span style="color:var(--gold)">KLAR</span></div>
     
-    <div class="nav">
-        <button id="n-pla" class="active" onclick="tab('pla')">Planilla</button>
+    <div class="nav no-print">
+        <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
         <button id="n-pue" onclick="tab('pue')">Puestos</button>
         <button id="n-per" onclick="tab('per')">Personal</button>
     </div>
 
     <div class="content">
-        <!-- PLANILLA -->
+        <!-- SECCION PLANILLA -->
         <div id="s-pla" class="section active">
             <div class="actions-bar no-print">
-                <select id="sel-mes" onchange="render()" style="padding:10px; background:#111; color:white; border:1px solid var(--gold); border-radius:5px;"></select>
-                <select id="sel-anio" onchange="render()" style="padding:10px; background:#111; color:white; border:1px solid var(--gold); border-radius:5px;"></select>
-                <button class="btn-report" onclick="exportarPDF()">📄 GENERAR INFORME PDF</button>
+                <select id="sel-mes" onchange="render()" style="padding:12px; background:#000; color:var(--gold); border:1px solid var(--gold); font-weight:bold;"></select>
+                <select id="sel-anio" onchange="render()" style="padding:12px; background:#000; color:var(--gold); border:1px solid var(--gold); font-weight:bold;"></select>
+                <button class="btn-action btn-pdf" onclick="exportarPDF()">📄 INFORME PDF</button>
             </div>
-            <div class="table-wrap" id="reporte-pdf">
-                <div class="only-print" style="display:none; color:black; text-align:center; padding:20px;">
-                    <h2>INFORME MENSUAL DE NOVEDADES - ORDO KLAR</h2>
-                </div>
+            <div class="table-wrap" id="tabla-objetivo">
                 <table>
                     <thead id="h-pla"></thead>
                     <tbody id="b-pla"></tbody>
@@ -141,22 +162,29 @@ HTML_UI = '''
             </div>
         </div>
 
-        <!-- PUESTOS -->
+        <!-- SECCION PUESTOS -->
         <div id="s-pue" class="section">
             <div class="actions-bar no-print">
-                <button class="btn-print" onclick="window.print()">🖨️ IMPRIMIR PUESTOS</button>
+                <button class="btn-action btn-print" onclick="window.print()">🖨️ IMPRIMIR LISTADO</button>
+            </div>
+            <div class="card-puesto no-print">
+                <h3>Añadir Nuevo Puesto</h3>
+                <input type="text" id="p-nom" placeholder="Puesto" style="padding:10px; margin:5px">
+                <input type="text" id="p-hor" placeholder="Horario" style="padding:10px; margin:5px">
+                <input type="number" id="p-can" placeholder="Cant." style="padding:10px; margin:5px; width:70px">
+                <button class="btn-action btn-gold" onclick="addPuesto()">+ GUARDAR</button>
             </div>
             <div id="g-pue"></div>
         </div>
 
-        <!-- PERSONAL -->
+        <!-- SECCION PERSONAL -->
         <div id="s-per" class="section">
-            <div class="card no-print">
-                <h3>Nuevo Operativo</h3>
+            <div class="card-puesto no-print">
+                <h3>Alta de Operativos</h3>
                 <input type="text" id="i-leg" placeholder="Legajo" style="padding:10px; margin:5px">
                 <input type="text" id="i-ape" placeholder="Apellido" style="padding:10px; margin:5px">
                 <input type="text" id="i-nom" placeholder="Nombre" style="padding:10px; margin:5px">
-                <button class="btn-report" onclick="addPersonal()">REGISTRAR</button>
+                <button class="btn-action btn-pdf" onclick="addPersonal()">REGISTRAR</button>
             </div>
             <div id="l-per"></div>
         </div>
@@ -179,6 +207,7 @@ HTML_UI = '''
             document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
             document.getElementById('s-'+t).classList.add('active');
             document.getElementById('n-'+t).classList.add('active');
+            render();
         }
 
         async function render() {
@@ -220,7 +249,7 @@ HTML_UI = '''
                         <option value="ART" ${st=='ART'?'selected':''}>A</option>
                     </select></td>`;
                 }
-                return `<tr>${r}<td style="background:#1a1a1a; font-weight:bold; color:var(--gold)">${rowHs}</td></tr>`;
+                return `<tr>${r}<td style="font-weight:bold; color:var(--gold)">${rowHs}</td></tr>`;
             }).join('');
 
             // Footer
@@ -235,28 +264,37 @@ HTML_UI = '''
 
             // Render Puestos
             document.getElementById('g-pue').innerHTML = pue.map(p => `
-                <div class="card">
+                <div class="card-puesto">
                     <h2 style="margin:0; color:var(--gold)">${p.nombre.toUpperCase()}</h2>
-                    <p><b>Horario:</b> ${p.horario} | <b>Dotación Requerida:</b> ${p.cantidad} personas</p>
+                    <p><b>HORARIO:</b> ${p.horario} | <b>PERSONAL REQUERIDO:</b> ${p.cantidad}</p>
                 </div>
             `).join('');
+
+            // Render Personal list
+            document.getElementById('l-per').innerHTML = per.map(p => `<div style="padding:10px; border-bottom:1px solid #222">${p.legajo} - ${p.apellido}, ${p.nombre}</div>`).join('');
         }
 
         function exportarPDF() {
-            const element = document.getElementById('reporte-pdf');
+            const element = document.getElementById('tabla-objetivo');
             const mesNombre = meses[document.getElementById('sel-mes').value - 1];
             const opt = {
-                margin: [10, 10],
-                filename: `Planilla_${mesNombre}.pdf`,
+                margin: 5,
+                filename: `Informe_OrdoKlar_${mesNombre}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' } // A3 horizontal para que entre la planilla
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' }
             };
             html2pdf().set(opt).from(element).save();
         }
 
         async function updNov(pid, f, e) {
             await fetch('/api/novedades', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:f, estado:e})});
+            render();
+        }
+
+        async function addPuesto() {
+            const d = {nombre: document.getElementById('p-nom').value, horario: document.getElementById('p-hor').value, cantidad: document.getElementById('p-can').value};
+            await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
             render();
         }
 
