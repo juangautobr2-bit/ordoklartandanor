@@ -5,13 +5,12 @@ from flask import Flask, render_template_string, request, jsonify
 app = Flask(__name__)
 
 # Base de datos en /tmp para Render
-DB_PATH = '/tmp/ordoklar_final.db'
+DB_PATH = '/tmp/ordoklar_final_v5.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    # CREACIÓN FORZADA DE TODAS LAS TABLAS
     cursor.execute('CREATE TABLE IF NOT EXISTS personal (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, apellido TEXT, legajo TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS puestos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cantidad INTEGER)')
     cursor.execute('CREATE TABLE IF NOT EXISTS novedades (id INTEGER PRIMARY KEY AUTOINCREMENT, personal_id INTEGER, fecha TEXT, estado TEXT, UNIQUE(personal_id, fecha))')
@@ -22,7 +21,7 @@ def get_db_connection():
 def index():
     return render_template_string(HTML_UI)
 
-# --- APIs ---
+# --- APIs PERSONAL ---
 @app.route('/api/personal', methods=['GET', 'POST'])
 def handle_personal():
     conn = get_db_connection()
@@ -34,6 +33,15 @@ def handle_personal():
     conn.close()
     return jsonify(res)
 
+@app.route('/api/personal/<int:id>', methods=['DELETE'])
+def del_p(id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM personal WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"s": "ok"})
+
+# --- APIs PUESTOS (CON EDITAR Y ELIMINAR) ---
 @app.route('/api/puestos', methods=['GET', 'POST'])
 def handle_puestos():
     conn = get_db_connection()
@@ -45,6 +53,19 @@ def handle_puestos():
     conn.close()
     return jsonify(res)
 
+@app.route('/api/puestos/<int:id>', methods=['DELETE', 'PUT'])
+def edit_del_puesto(id):
+    conn = get_db_connection()
+    if request.method == 'DELETE':
+        conn.execute("DELETE FROM puestos WHERE id = ?", (id,))
+    elif request.method == 'PUT':
+        d = request.json
+        conn.execute("UPDATE puestos SET nombre = ?, cantidad = ? WHERE id = ?", (d['nombre'], d['cantidad'], id))
+    conn.commit()
+    conn.close()
+    return jsonify({"s": "ok"})
+
+# --- API NOVEDADES ---
 @app.route('/api/novedades', methods=['GET', 'POST'])
 def handle_novedades():
     conn = get_db_connection()
@@ -56,76 +77,77 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-@app.route('/api/personal/<int:id>', methods=['DELETE'])
-def del_p(id):
-    conn = get_db_connection()
-    conn.execute("DELETE FROM personal WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"s": "ok"})
-
 # --- INTERFAZ COMPLETA ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR | Panel</title>
+    <title>ORDO KLAR | Gestión Total</title>
     <style>
         :root { --gold: #C5A059; --bg: #050505; --card: #121212; }
-        body { background: var(--bg); color: #fff; font-family: sans-serif; margin: 0; padding: 0; }
+        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; }
         .nav { background: var(--card); display: flex; justify-content: center; border-bottom: 1px solid var(--gold); }
-        .nav button { background: none; border: none; color: #777; padding: 20px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        .nav button { background: none; border: none; color: #777; padding: 20px; cursor: pointer; font-weight: bold; text-transform: uppercase; font-size: 11px; }
         .nav button.active { color: var(--gold); border-bottom: 2px solid var(--gold); }
         .container { padding: 20px; }
         .section { display: none; }
         .active { display: block; }
         .card { background: var(--card); border: 1px solid #333; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        input { background: #000; border: 1px solid #444; color: #fff; padding: 8px; margin: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-        th, td { border: 1px solid #333; padding: 5px; text-align: center; }
-        .col-fixed { text-align: left; color: var(--gold); min-width: 120px; font-weight: bold; }
-        select { background: transparent; color: #fff; border: none; font-weight: bold; cursor: pointer; }
-        .st-12 { background: #1b5e20; } .st-F { background: #444; } .st-VAC { background: #01579b; } .st-ART { background: #ef6c00; }
+        input { background: #000; border: 1px solid #444; color: #fff; padding: 8px; margin: 5px; border-radius: 4px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; background: #000; }
+        th, td { border: 1px solid #333; padding: 4px; text-align: center; height: 35px; }
+        th { background: #111; color: var(--gold); }
+        .col-fixed { text-align: left; color: var(--gold); min-width: 140px; padding-left: 10px; font-weight: bold; }
+        .col-hs { background: #1a1a1a; color: var(--gold); font-weight: bold; width: 40px; border-left: 2px solid var(--gold); }
+        
+        select { background: transparent; color: #fff; border: none; font-weight: bold; cursor: pointer; width: 100%; height: 100%; text-align-last: center; outline: none; }
+        .st-12 { background: #1b5e20 !important; } 
+        .st-F { background: #333 !important; }    
+        .st-VAC { background: #01579b !important; } 
+        .st-ART { background: #b71c1c !important; } 
+        
+        .btn-action { background: none; border: 1px solid #444; color: #fff; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-right: 5px; }
+        .btn-edit { border-color: var(--gold); color: var(--gold); }
+        .btn-del { border-color: #ff4444; color: #ff4444; }
+        button.add { background: var(--gold); border: none; padding: 8px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <div style="text-align:center; padding:15px; font-size:24px; letter-spacing:8px; border-bottom:1px solid #222;">ORDO <span style="color:var(--gold)">KLAR</span></div>
+    <div style="text-align:center; padding:15px; font-size:22px; letter-spacing:8px; border-bottom:1px solid #222;">ORDO <span style="color:var(--gold)">KLAR</span></div>
     
     <div class="nav">
-        <button id="btn-pla" class="active" onclick="tab('pla')">Planilla</button>
+        <button id="btn-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
         <button id="btn-per" onclick="tab('per')">Personal</button>
         <button id="btn-pue" onclick="tab('pue')">Puestos</button>
     </div>
 
     <div class="container">
-        <!-- PLANILLA -->
         <div id="sec-pla" class="section active">
-            <h3 style="color:var(--gold)">ASISTENCIA MENSUAL</h3>
+            <h3 style="color:var(--gold)">CONTROL DE HORAS</h3>
             <div style="overflow-x:auto;">
                 <table><thead id="h-pla"></thead><tbody id="b-pla"></tbody></table>
             </div>
         </div>
 
-        <!-- PERSONAL -->
         <div id="sec-per" class="section">
             <div class="card">
                 <input type="text" id="p_leg" placeholder="Legajo">
                 <input type="text" id="p_ape" placeholder="Apellido">
                 <input type="text" id="p_nom" placeholder="Nombre">
-                <button onclick="addPer()" style="background:var(--gold); border:none; padding:8px 15px; cursor:pointer;">AÑADIR</button>
+                <button class="add" onclick="addPer()">AÑADIR PERSONAL</button>
             </div>
-            <table><thead><tr><th>Legajo</th><th>Nombre</th><th></th></tr></thead><tbody id="l-per"></tbody></table>
+            <table><thead><tr><th>Legajo</th><th>Apellido y Nombre</th><th></th></tr></thead><tbody id="l-per"></tbody></table>
         </div>
 
-        <!-- PUESTOS -->
         <div id="sec-pue" class="section">
             <div class="card">
                 <input type="text" id="t_nom" placeholder="Nombre Puesto">
                 <input type="number" id="t_can" placeholder="Cantidad Plazas">
-                <button onclick="addPue()" style="background:var(--gold); border:none; padding:8px 15px; cursor:pointer;">CREAR</button>
+                <button class="add" onclick="addPue()">CREAR PUESTO</button>
             </div>
-            <div id="grid-pue" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px;"></div>
+            <div id="grid-pue" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:15px;"></div>
         </div>
     </div>
 
@@ -144,21 +166,25 @@ HTML_UI = '''
                 fetch('/api/puestos').then(r => r.json())
             ]);
 
-            // Render Personal
-            document.getElementById('l-per').innerHTML = p.map(x => `<tr><td>${x.legajo}</td><td>${x.apellido}, ${x.nombre}</td><td><button onclick="delP(${x.id})">X</button></td></tr>`).join('');
+            // Personal
+            document.getElementById('l-per').innerHTML = p.map(x => `<tr><td>${x.legajo}</td><td>${x.apellido.toUpperCase()}, ${x.nombre}</td><td><button onclick="delP(${x.id})" class="btn-action btn-del">ELIMINAR</button></td></tr>`).join('');
 
-            // Render Planilla
-            const dias = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-            let th = '<tr><th class="col-fixed">Personal</th>';
+            // Planilla
+            const now = new Date();
+            const dias = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+            let th = '<tr><th class="col-fixed">Apellido</th>';
             for(let i=1; i<=dias; i++) th += `<th>${i}</th>`;
-            document.getElementById('h-pla').innerHTML = th + '</tr>';
+            th += '<th class="col-hs">HS</th></tr>';
+            document.getElementById('h-pla').innerHTML = th;
 
             document.getElementById('b-pla').innerHTML = p.map(per => {
                 let row = `<td class="col-fixed">${per.apellido.toUpperCase()}</td>`;
+                let totalHs = 0;
                 for(let i=1; i<=dias; i++) {
-                    const f = `2026-05-${String(i).padStart(2,'0')}`; // Forzado a Mayo por el ejemplo
+                    const f = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const nov = n.find(x => x.personal_id == per.id && x.fecha == f);
                     const est = nov ? nov.estado : 'F';
+                    if(est === '12') totalHs += 12;
                     row += `<td class="st-${est}"><select onchange="updNov(${per.id},'${f}',this.value)">
                         <option value="12" ${est=='12'?'selected':''}>12</option>
                         <option value="F" ${est=='F'?'selected':''}>F</option>
@@ -166,15 +192,42 @@ HTML_UI = '''
                         <option value="ART" ${est=='ART'?'selected':''}>A</option>
                     </select></td>`;
                 }
+                row += `<td class="col-hs">${totalHs}</td>`;
                 return `<tr>${row}</tr>`;
             }).join('');
 
-            // Render Puestos
+            // Puestos (CON BOTONES)
             document.getElementById('grid-pue').innerHTML = t.map(pst => {
-                let selects = "";
-                for(let i=0; i<pst.cantidad; i++) selects += `<select style="width:100%; background:#000; color:#fff; margin-bottom:5px; border:1px solid #333; padding:5px;"><option>-- VACANTE --</option>${p.map(pe => `<option>${pe.apellido}</option>`).join('')}</select>`;
-                return `<div class="card"><b style="color:var(--gold)">${pst.nombre.toUpperCase()}</b><br><br>${selects}</div>`;
+                let s = "";
+                for(let i=0; i<pst.cantidad; i++) s += `<select style="width:100%; background:#000; color:#fff; margin-bottom:5px; border:1px solid #333; padding:5px; font-size:10px;"><option>-- VACANTE --</option>${p.map(pe => `<option>${pe.apellido}</option>`).join('')}</select>`;
+                return `<div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <b style="color:var(--gold); font-size:12px;">${pst.nombre.toUpperCase()}</b>
+                        <div>
+                            <button onclick="editPue(${pst.id}, '${pst.nombre}', ${pst.cantidad})" class="btn-action btn-edit">EDITAR</button>
+                            <button onclick="delPue(${pst.id})" class="btn-action btn-del">X</button>
+                        </div>
+                    </div>
+                    ${s}
+                </div>`;
             }).join('');
+        }
+
+        // --- FUNCIONES PUESTOS ---
+        async function editPue(id, nom, can) {
+            const nNom = prompt("Nuevo nombre del puesto:", nom);
+            const nCan = prompt("Nueva cantidad de plazas:", can);
+            if(nNom && nCan) {
+                await fetch('/api/puestos/'+id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({nombre: nNom, cantidad: parseInt(nCan)}) });
+                refresh();
+            }
+        }
+
+        async function delPue(id) {
+            if(confirm("¿Eliminar este puesto?")) {
+                await fetch('/api/puestos/'+id, { method: 'DELETE' });
+                refresh();
+            }
         }
 
         async function addPer() {
@@ -192,14 +245,9 @@ HTML_UI = '''
             refresh();
         }
 
-        async function delP(id) { await fetch('/api/personal/'+id, {method:'DELETE'}); refresh(); }
+        async function delP(id) { if(confirm("¿Eliminar?")) { await fetch('/api/personal/'+id, {method:'DELETE'}); refresh(); } }
 
         window.onload = refresh;
     </script>
 </body>
 </html>
-'''
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
