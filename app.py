@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Base de datos v14
-DB_PATH = '/tmp/ordoklar_v14.db'
+# Base de datos v15
+DB_PATH = '/tmp/ordoklar_v15.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -55,52 +55,91 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ PREMIUM ---
+# --- INTERFAZ DE ALTA VISIBILIDAD ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR | Gestión</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORDO KLAR | Panel Operativo</title>
     <style>
         :root { --gold: #C5A059; --bg: #050505; --card: #121212; --border: #222; }
-        body { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; margin: 0; }
-        .header { text-align: center; padding: 15px; font-size: 20px; letter-spacing: 6px; border-bottom: 1px solid var(--border); }
-        .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 2px solid var(--gold); }
-        .nav button { background: none; border: none; color: #666; padding: 12px 20px; cursor: pointer; font-weight: bold; font-size: 10px; text-transform: uppercase; }
-        .nav button.active { color: var(--gold); }
+        body { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        
+        .header { text-align: center; padding: 20px; font-size: 24px; letter-spacing: 8px; border-bottom: 1px solid var(--border); background: #000; }
+        
+        .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 2px solid var(--gold); position: sticky; top: 0; z-index: 1000; }
+        .nav button { background: none; border: none; color: #888; padding: 15px 25px; cursor: pointer; font-weight: bold; font-size: 13px; text-transform: uppercase; }
+        .nav button.active { color: var(--gold); background: #1a1a1a; }
         
         .content { padding: 15px; }
         .section { display: none; }
         .active { display: block; }
 
-        /* TABLA PLANILLA */
-        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
-        table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        th, td { border: 1px solid #1a1a1a; text-align: center; }
-        th { background: #111; color: var(--gold); padding: 5px; }
+        /* TABLA PLANILLA OPTIMIZADA */
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: #000; }
+        table { border-collapse: collapse; min-width: 1200px; }
         
-        .day-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 8px; color: #777; margin-bottom: 3px; display: inline-block; }
-        .name-col { width: 130px; text-align: left !important; padding-left: 8px; color: var(--gold); font-weight: bold; height: 32px; }
-        .hs-col { width: 40px; background: #1a1a1a; color: var(--gold); font-weight: bold; border-left: 2px solid var(--gold) !important; }
+        th, td { border: 1px solid #1a1a1a; text-align: center; font-size: 13px; }
         
-        /* FILAS DE TOTALES (PIE) */
-        .total-hs { background: #0a0a0a; color: var(--gold); font-weight: bold; border-top: 2px solid var(--gold); }
-        .total-per { background: #000; color: #00e5ff; font-weight: bold; border-top: 1px solid #333; }
-        .total-per td { height: 35px; font-size: 11px; }
+        /* Cabecera */
+        th { background: #111; color: var(--gold); padding: 10px 5px; font-weight: 800; }
+        .day-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; color: #aaa; margin-bottom: 5px; display: inline-block; font-weight: 400; }
+        
+        /* Columna Fija de Nombres */
+        .name-col { 
+            width: 160px; 
+            text-align: left !important; 
+            padding-left: 12px; 
+            color: var(--gold); 
+            font-weight: bold; 
+            height: 45px; 
+            position: sticky; 
+            left: 0; 
+            background: #0a0a0a; 
+            z-index: 10;
+            border-right: 2px solid var(--gold) !important;
+            font-size: 13px;
+        }
 
-        select.cell-sel { background: transparent; color: #fff; border: none; width: 100%; height: 100%; cursor: pointer; text-align-last: center; font-weight: bold; appearance: none; }
-        .st-12 { background: #1b5e20 !important; }
-        .st-F { background: #333 !important; }
-        .st-VAC { background: #01579b !important; }
-        .st-ART { background: #b71c1c !important; }
+        .hs-col { width: 50px; background: #1a1a1a; color: var(--gold); font-weight: 900; font-size: 15px; border-left: 2px solid var(--gold) !important; }
 
-        .card { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 4px; margin-bottom: 10px; }
-        .btn-gold { background: var(--gold); border: none; padding: 8px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 10px; }
+        /* Filas de Totales */
+        .total-hs { background: #0a0a0a; color: var(--gold); font-weight: bold; }
+        .total-per { background: #000; color: #00e5ff; font-weight: bold; }
+        .total-hs td, .total-per td { height: 50px; font-size: 15px; }
+
+        /* Selectores de celda */
+        select.cell-sel { 
+            background: transparent; 
+            color: #fff; 
+            border: none; 
+            width: 100%; 
+            height: 45px; 
+            cursor: pointer; 
+            text-align-last: center; 
+            font-weight: bold; 
+            font-size: 14px;
+            appearance: none; 
+            outline: none;
+        }
+
+        /* Estados con colores fuertes */
+        .st-12 { background: #2e7d32 !important; } /* Verde bosque */
+        .st-F { background: #424242 !important; }  /* Gris oscuro */
+        .st-VAC { background: #1565c0 !important; } /* Azul */
+        .st-ART { background: #c62828 !important; } /* Rojo */
+
+        /* Formularios */
+        .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 8px; margin-bottom: 15px; }
+        input, select.form-control { background: #000; border: 1px solid #444; color: #fff; padding: 12px; border-radius: 4px; font-size: 15px; }
+        .btn-gold { background: var(--gold); border: none; padding: 12px 25px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 13px; color: #000; }
     </style>
 </head>
 <body>
     <div class="header">ORDO <span style="color:var(--gold)">KLAR</span></div>
+    
     <div class="nav">
         <button id="n-pla" class="active" onclick="tab('pla')">Planilla</button>
         <button id="n-pue" onclick="tab('pue')">Puestos</button>
@@ -108,13 +147,14 @@ HTML_UI = '''
     </div>
 
     <div class="content">
+        <!-- PLANILLA -->
         <div id="s-pla" class="section active">
-            <div style="display:flex; gap:10px; margin-bottom:15px; justify-content:center;">
-                <select id="sel-mes" style="background:#000; color:var(--gold); border:1px solid #444;" onchange="render()"></select>
-                <select id="sel-anio" style="background:#000; color:var(--gold); border:1px solid #444;" onchange="render()"></select>
+            <div style="display:flex; gap:15px; margin-bottom:20px; justify-content:center;">
+                <select id="sel-mes" class="form-control" onchange="render()"></select>
+                <select id="sel-anio" class="form-control" onchange="render()"></select>
             </div>
             <div class="table-wrap">
-                <table>
+                <table id="main-table">
                     <thead id="h-pla"></thead>
                     <tbody id="b-pla"></tbody>
                     <tfoot id="f-pla"></tfoot>
@@ -122,22 +162,30 @@ HTML_UI = '''
             </div>
         </div>
 
+        <!-- PUESTOS -->
         <div id="s-pue" class="section">
             <div class="card">
-                <input type="text" id="p-nom" placeholder="Puesto">
-                <input type="text" id="p-hor" placeholder="Horario">
-                <input type="number" id="p-can" placeholder="Dotación">
-                <button class="btn-gold" onclick="addPuesto()">+ AGREGAR PUESTO</button>
+                <h3>Nuevo Puesto</h3>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <input type="text" id="p-nom" placeholder="Nombre Puesto" style="flex:2">
+                    <input type="text" id="p-hor" placeholder="Horario" style="flex:1">
+                    <input type="number" id="p-can" placeholder="Cant." style="width:80px">
+                    <button class="btn-gold" onclick="addPuesto()">GUARDAR</button>
+                </div>
             </div>
             <div id="g-pue"></div>
         </div>
 
+        <!-- PERSONAL -->
         <div id="s-per" class="section">
             <div class="card">
-                <input type="text" id="i-leg" placeholder="Legajo">
-                <input type="text" id="i-ape" placeholder="Apellido">
-                <input type="text" id="i-nom" placeholder="Nombre">
-                <button class="btn-gold" onclick="addPersonal()">REGISTRAR</button>
+                <h3>Registrar Operativo</h3>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <input type="text" id="i-leg" placeholder="Legajo">
+                    <input type="text" id="i-ape" placeholder="Apellido">
+                    <input type="text" id="i-nom" placeholder="Nombre">
+                    <button class="btn-gold" onclick="addPersonal()">REGISTRAR</button>
+                </div>
             </div>
             <div id="l-per"></div>
         </div>
@@ -174,20 +222,20 @@ HTML_UI = '''
             const cantDias = new Date(anio, mes, 0).getDate();
             
             // HEADER
-            let h = '<tr><th class="name-col">Personal</th>';
+            let h = `<tr><th class="name-col" style="text-align:center !important">OPERATIVO</th>`;
             for(let i=1; i<=cantDias; i++) {
                 const dNom = diasSemana[new Date(anio, mes-1, i).getDay()];
                 h += `<th><span class="day-label">${dNom}</span><br>${i}</th>`;
             }
-            h += '<th class="hs-col">HS</th></tr>';
+            h += '<th class="hs-col">TOTAL</th></tr>';
             document.getElementById('h-pla').innerHTML = h;
 
-            // CUERPO
             let colTotHs = new Array(cantDias).fill(0);
             let colTotPer = new Array(cantDias).fill(0);
 
+            // CUERPO
             document.getElementById('b-pla').innerHTML = per.map(p => {
-                let r = `<td class="name-col">${p.apellido.toUpperCase()}</td>`;
+                let r = `<td class="name-col">${p.apellido.toUpperCase()}, ${p.nombre[0]}.</td>`;
                 let rowHs = 0;
                 for(let i=1; i<=cantDias; i++) {
                     const f = `${anio}-${String(mes).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
@@ -195,9 +243,7 @@ HTML_UI = '''
                     const st = d ? d.estado : 'F';
                     
                     if(st == '12') { 
-                        rowHs += 12; 
-                        colTotHs[i-1] += 12; 
-                        colTotPer[i-1] += 1; // Suma persona si trabaja 12hs
+                        rowHs += 12; colTotHs[i-1] += 12; colTotPer[i-1] += 1; 
                     }
 
                     r += `<td class="st-${st}"><select class="cell-sel" onchange="updNov(${p.id},'${f}',this.value)">
@@ -210,7 +256,7 @@ HTML_UI = '''
                 return `<tr>${r}<td class="hs-col">${rowHs}</td></tr>`;
             }).join('');
 
-            // FOOTER (Aquí están las dos filas de suma)
+            // FOOTER CON LAS DOS FILAS SOLICITADAS
             let fHs = `<tr class="total-hs"><td class="name-col">TOTAL HORAS</td>`;
             colTotHs.forEach(t => fHs += `<td>${t}</td>`);
             fHs += `<td class="hs-col">${colTotHs.reduce((a,b)=>a+b, 0)}</td></tr>`;
@@ -221,9 +267,9 @@ HTML_UI = '''
 
             document.getElementById('f-pla').innerHTML = fHs + fPer;
 
-            // Resto de la interfaz
-            document.getElementById('g-pue').innerHTML = pue.map(p => `<div class="card"><b>${p.nombre}</b> (${p.horario}) - Req: ${p.cantidad}</div>`).join('');
-            document.getElementById('l-per').innerHTML = per.map(x => `<div style="padding:5px; border-bottom:1px solid #222">${x.apellido}, ${x.nombre}</div>`).join('');
+            // Listados secundarios
+            document.getElementById('g-pue').innerHTML = pue.map(p => `<div class="card"><b>${p.nombre}</b> | ${p.horario} | Dotación: ${p.cantidad}</div>`).join('');
+            document.getElementById('l-per').innerHTML = per.map(x => `<div class="card" style="padding:10px">${x.legajo} - ${x.apellido}, ${x.nombre}</div>`).join('');
         }
 
         async function updNov(pid, f, e) {
@@ -232,12 +278,14 @@ HTML_UI = '''
         }
 
         async function addPuesto() {
-            await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:document.getElementById('p-nom').value, horario:document.getElementById('p-hor').value, cantidad:document.getElementById('p-can').value})});
+            const d = {nombre: document.getElementById('p-nom').value, horario: document.getElementById('p-hor').value, cantidad: document.getElementById('p-can').value};
+            await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
             render();
         }
 
         async function addPersonal() {
-            await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:document.getElementById('i-nom').value, apellido:document.getElementById('i-ape').value, legajo:document.getElementById('i-leg').value})});
+            const d = {nombre:document.getElementById('i-nom').value, apellido:document.getElementById('i-ape').value, legajo:document.getElementById('i-leg').value};
+            await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
             render();
         }
 
