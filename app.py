@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Base de datos v25
-DB_PATH = '/tmp/ordoklar_v25.db'
+# Base de datos v26
+DB_PATH = '/tmp/ordoklar_v26.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -21,7 +21,7 @@ def get_db_connection():
 def index():
     return render_template_string(HTML_UI)
 
-# --- APIs Mantenidas para funcionalidad ---
+# --- APIs Funcionales ---
 @app.route('/api/puestos', methods=['GET', 'POST'])
 def handle_puestos():
     conn = get_db_connection()
@@ -58,7 +58,7 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ v25 ---
+# --- INTERFAZ v26 ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
@@ -74,54 +74,56 @@ HTML_UI = '''
         /* HEADER WEB */
         .header-web { text-align: center; padding: 20px; font-size: 26px; font-weight: 900; letter-spacing: 8px; border-bottom: 2px solid var(--gold); }
         
-        /* REPORTE (INVISIBLE EN WEB - VISIBLE EN PDF) */
-        .report-header { display: none; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 4px solid #000; margin-bottom: 20px; color: #000; background: #fff; }
-        .report-header img { height: 85px; width: auto; object-fit: contain; }
-        .report-title { text-align: center; flex: 1; }
-        .report-title h1 { margin: 0; font-size: 26px; text-transform: uppercase; font-weight: 900; font-family: Arial, sans-serif; }
+        /* HEADER REPORTES PDF (SÓLO VISIBLE EN PDF) */
+        .report-header { display: none; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 5px solid #000; background: #fff; color: #000; }
+        .report-header .logo-container { width: 120px; text-align: center; font-weight: bold; font-size: 10px; }
+        .report-header img { height: 75px; width: auto; display: block; margin: 0 auto; }
+        .report-title-box { text-align: center; flex: 1; }
+        .report-title-box h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+        .report-title-box h2 { margin: 0; font-size: 14px; color: #444; }
 
         /* NAVEGACIÓN */
         .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1000; }
-        .nav button { background: none; border: none; color: #AAA; padding: 15px 25px; cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        .nav button { background: none; border: none; color: #AAA; padding: 15px 25px; cursor: pointer; font-weight: bold; text-transform: uppercase; font-size: 12px; }
         .nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
         
         .content { padding: 20px; }
         .section { display: none; }
         .active-section { display: block; }
 
-        /* BOTONES */
+        /* BOTONES ACCION */
         .actions-bar { display: flex; gap: 15px; margin-bottom: 20px; padding: 15px; background: #111; border-radius: 8px; justify-content: center; border: 1px solid #222; }
         .btn-action { padding: 12px 18px; border-radius: 6px; font-weight: 900; cursor: pointer; border: none; text-transform: uppercase; font-size: 11px; display: flex; align-items: center; gap: 8px; }
         .btn-pdf { background: #2E7D32; color: white; }
-        .btn-gold { background: var(--gold); color: black; }
 
-        /* TABLA PLANILLA */
+        /* TABLAS Y COLORES */
         .table-wrap { overflow-x: auto; border-radius: 12px; border: 2px solid var(--border); background: #000; }
         table { border-collapse: collapse; min-width: 1300px; width: 100%; }
         th, td { border: 1px solid #222; text-align: center; padding: 6px; font-size: 12px; }
         .name-col { width: 220px; text-align: left !important; color: var(--gold); font-weight: 800; position: sticky; left: 0; background: #111; z-index: 20; border-right: 3px solid var(--gold) !important; padding-left: 10px; }
         
-        /* COLORES NOVEDADES */
-        .cell-12 { background-color: #1B5E20 !important; color: #FFF; }
-        .cell-F  { background-color: #424242 !important; color: #FFF; }
-        .cell-ART { background-color: #B71C1C !important; color: #FFF; }
-        .cell-FE { background-color: #E65100 !important; color: #FFF; }
-        .cell-VAC { background-color: #0D47A1 !important; color: #FFF; }
+        .cell-12 { background-color: #1B5E20 !important; color: white; }
+        .cell-F  { background-color: #424242 !important; color: white; }
+        .cell-ART { background-color: #B71C1C !important; color: white; }
+        .cell-FE { background-color: #E65100 !important; color: white; }
+        .cell-VAC { background-color: #0D47A1 !important; color: white; }
 
-        select.nov-select { background: transparent; color: inherit; border: none; font-weight: bold; width: 100%; text-align: center; }
         .row-total { background: #111; font-weight: bold; color: var(--gold); }
+        select.nov-select { background: transparent; color: inherit; border: none; font-weight: bold; width: 100%; text-align-last: center; }
 
+        /* VISTAS DE PUESTOS Y PERSONAL */
         .card-puesto { background: #151515; border-left: 5px solid var(--gold); padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-        .list-item { background: #111; padding: 12px; border-bottom: 1px solid #222; display: flex; gap: 40px; font-size: 16px; }
+        .item-personal { background: #fff; color: #000; padding: 12px; border-bottom: 1px solid #ddd; display: flex; gap: 50px; font-weight: bold; }
 
         @media print {
             .no-print { display: none !important; }
-            body { background: #FFF; color: #000; }
+            body { background: #fff; color: #000; }
             .report-header { display: flex !important; }
-            .section { display: block !important; }
-            .name-col { background: #f0f0f0 !important; color: #000 !important; }
-            table { border: 1px solid #000 !important; }
+            .section { display: block !important; padding: 0 !important; }
+            .table-wrap { border: none !important; }
+            table { border: 1px solid #000 !important; width: 100% !important; color: #000 !important; }
             th, td { border: 1px solid #000 !important; color: #000 !important; }
+            .name-col { background: #eee !important; color: #000 !important; border-right: 1px solid #000 !important; }
         }
     </style>
 </head>
@@ -131,18 +133,26 @@ HTML_UI = '''
     
     <div class="nav no-print">
         <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
-        <button id="n-pue" onclick="tab('pue')">Puestos / Guardias</button>
+        <button id="n-pue" onclick="tab('pue')">Guardias / Puestos</button>
         <button id="n-per" onclick="tab('per')">Personal</button>
     </div>
 
-    <!-- REPORTE DE IMPRESIÓN (LOGOS GITHUB CONFIGURADOS) -->
+    <!-- ENCABEZADO PARA PDF (TANDANOR - WATCHMAN) -->
     <div id="report-header-ui" class="report-header">
-        <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/TANDANOR.PNG" crossorigin="anonymous">
-        <div class="report-title">
-            <h1 id="rt-titulo">INFORME</h1>
-            <p id="rt-subtitulo">DETALLE DEL SERVICIO</p>
+        <div class="logo-container">
+            <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/TANDANOR.PNG" crossorigin="anonymous" alt="TANDANOR">
+            <span>TANDANOR</span>
         </div>
-        <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/WATCHMAN.SVG" crossorigin="anonymous">
+        
+        <div class="report-title-box">
+            <h1 id="rt-titulo">INFORME DE NOVEDADES</h1>
+            <h2 id="rt-subtitulo">SISTEMA ORDO KLAR</h2>
+        </div>
+        
+        <div class="logo-container">
+            <img src="https://raw.githubusercontent.com/juangautobr2-bit/ordoklartandanor/main/WATCHMAN.SVG" crossorigin="anonymous" alt="WATCHMAN">
+            <span>WATCHMAN</span>
+        </div>
     </div>
 
     <div class="content">
@@ -151,10 +161,10 @@ HTML_UI = '''
             <div class="actions-bar no-print">
                 <select id="sel-mes" onchange="render()"></select>
                 <select id="sel-anio" onchange="render()"></select>
-                <button class="btn-action btn-pdf" onclick="pdfPlanilla()">📄 PDF PLANILLA</button>
+                <button class="btn-action btn-pdf" onclick="pdfPlanilla()">📄 EXPORTAR PLANILLA PDF</button>
             </div>
             <div class="table-wrap">
-                <table>
+                <table id="table-pla">
                     <thead id="h-pla"></thead>
                     <tbody id="b-pla"></tbody>
                     <tfoot id="f-pla"></tfoot>
@@ -165,7 +175,7 @@ HTML_UI = '''
         <!-- PUESTOS -->
         <div id="s-pue" class="section">
             <div class="actions-bar no-print">
-                <button class="btn-action btn-pdf" onclick="pdfPuestos()">📄 PDF GUARDIAS</button>
+                <button class="btn-action btn-pdf" onclick="pdfPuestos()">📄 EXPORTAR GUARDIAS PDF</button>
             </div>
             <div id="g-pue"></div>
         </div>
@@ -173,7 +183,7 @@ HTML_UI = '''
         <!-- PERSONAL -->
         <div id="s-per" class="section">
             <div class="actions-bar no-print">
-                <button class="btn-action btn-pdf" onclick="pdfPersonal()">📄 PDF PERSONAL</button>
+                <button class="btn-action btn-pdf" onclick="pdfPersonal()">📄 EXPORTAR PERSONAL PDF</button>
             </div>
             <div id="l-per"></div>
         </div>
@@ -213,7 +223,7 @@ HTML_UI = '''
             const anio = document.getElementById('sel-anio').value;
             const cantDias = new Date(anio, mes, 0).getDate();
 
-            // Cabecera
+            // Cabecera Planilla
             let h = `<tr><th class="name-col">PERSONAL</th>`;
             for(let i=1; i<=cantDias; i++) h += `<th>${i}</th>`;
             h += '<th>TOTAL</th></tr>';
@@ -222,7 +232,7 @@ HTML_UI = '''
             let colHs = new Array(cantDias).fill(0);
             let colPer = new Array(cantDias).fill(0);
 
-            // Cuerpo
+            // Cuerpo Planilla
             document.getElementById('b-pla').innerHTML = per.map(p => {
                 let r = `<td class="name-col">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
                 let hsFila = 0;
@@ -239,13 +249,13 @@ HTML_UI = '''
                             <option value="FE" ${st=='FE'?'selected':''}>FE</option>
                             <option value="VAC" ${st=='VAC'?'selected':''}>VAC</option>
                         </select>
-                        <span class="no-web" style="display:none">${st}</span>
+                        <span class="no-web" style="display:none; font-weight:bold;">${st}</span>
                     </td>`;
                 }
                 return `<tr>${r}<td><b>${hsFila}</b></td></tr>`;
             }).join('');
 
-            // Pie de tabla
+            // Totales
             let f1 = `<tr class="row-total"><td class="name-col">CANT HS POR DIA</td>`;
             colHs.forEach(v => f1 += `<td>${v}</td>`);
             f1 += `<td>-</td></tr>`;
@@ -255,16 +265,15 @@ HTML_UI = '''
             document.getElementById('f-pla').innerHTML = f1 + f2;
 
             // Listas
-            document.getElementById('g-pue').innerHTML = pue.map(p => `<div class="card-puesto"><div><b>${p.nombre.toUpperCase()}</b><br><small>HORA: ${p.horario} | DOT: ${p.cantidad}</small></div></div>`).join('');
-            document.getElementById('l-per').innerHTML = per.map(p => `<div class="list-item" style="background:#fff; color:#000;"><span><b>${p.legajo}</b></span> <span>${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}</span></div>`).join('');
+            document.getElementById('g-pue').innerHTML = pue.map(p => `<div class="card-puesto"><div><b>${p.nombre.toUpperCase()}</b><br><small>HORARIO: ${p.horario} | DOTACIÓN: ${p.cantidad}</small></div></div>`).join('');
+            document.getElementById('l-per').innerHTML = per.map(p => `<div class="item-personal"><span>LEGAJO: ${p.legajo}</span> <span>${p.apellido.toUpperCase()}, ${p.nombre.toUpperCase()}</span></div>`).join('');
         }
 
-        // --- LÓGICA DE PDF INTEGRADA CON CORS ---
-        function generatePDF(titulo, subtitulo, filename, orientation) {
+        // --- EXPORTACIÓN PDF ---
+        function exportPDF(titulo, subtitulo, filename, orientation) {
             document.getElementById('rt-titulo').innerText = titulo;
             document.getElementById('rt-subtitulo').innerText = subtitulo;
             
-            // Mostrar header para la captura
             const header = document.getElementById('report-header-ui');
             header.style.display = 'flex';
             
@@ -273,11 +282,7 @@ HTML_UI = '''
                 margin: 5,
                 filename: filename,
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { 
-                    scale: 2, 
-                    useCORS: true, // CLAVE PARA QUE LOS LOGOS DE GITHUB SE VEAN
-                    letterRendering: true 
-                },
+                html2canvas: { scale: 2, useCORS: true },
                 jsPDF: { unit: 'mm', format: orientation == 'landscape' ? 'a3' : 'a4', orientation: orientation }
             };
 
@@ -288,14 +293,13 @@ HTML_UI = '''
 
         function pdfPlanilla() {
             const m = meses[document.getElementById('sel-mes').value - 1];
-            generatePDF("PLANILLA MENSUAL DE SERVICIO", `MES: ${m.toUpperCase()} ${document.getElementById('sel-anio').value}`, "Planilla.pdf", "landscape");
+            exportPDF("PLANILLA MENSUAL DE NOVEDADES", `${m.toUpperCase()} ${document.getElementById('sel-anio').value}`, "Planilla.pdf", "landscape");
         }
-        function pdfPuestos() { generatePDF("REPORTE DE PUESTOS Y GUARDIAS", "ESTADO ACTUAL", "Guardias.pdf", "portrait"); }
-        function pdfPersonal() { generatePDF("NÓMINA DE PERSONAL REGISTRADO", "SISTEMA ORDO KLAR", "Personal.pdf", "portrait"); }
+        function pdfPuestos() { exportPDF("REPORTE OPERATIVO DE GUARDIAS / PUESTOS", "TANDANOR - WATCHMAN", "Guardias.pdf", "portrait"); }
+        function pdfPersonal() { exportPDF("NÓMINA DE PERSONAL REGISTRADO", "SISTEMA DE GESTIÓN", "Personal.pdf", "portrait"); }
 
         async function updNov(pid, f, e) { await fetch('/api/novedades', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:f, estado:e})}); render(); }
         window.onload = () => { fillSelectors(); render(); };
     </script>
 </body>
 </html>
-'''
