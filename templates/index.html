@@ -1,0 +1,33 @@
+<!-- SECCION PUESTOS Y LA DIARIA -->
+<div id="puestos" class="section">
+    <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+        <div>
+            <h3 style="color:var(--gold); font-size:14px; text-transform:uppercase; letter-spacing:2px; margin:0;">Control de Servicio Diario</h3>
+            <p style="font-size:11px; color:var(--text-dim); margin: 5px 0 0 0;">Asignación de personal por objetivo y puesto.</p>
+        </div>
+        
+        <div style="display: flex; gap: 15px; align-items: center; background: #000; padding: 10px 20px; border-radius: 8px; border: 1px solid var(--gold);">
+            <label style="font-size: 11px; font-weight: bold; color: var(--gold);">FECHA DEL INFORME:</label>
+            <input type="date" id="fecha_diaria" onchange="renderPuestos()" style="background: transparent; border: none; color: #fff; font-family: inherit; cursor: pointer; outline: none;">
+        </div>
+
+        <button class="btn btn-outline" onclick="window.print()" style="border-color: var(--success); color: var(--success);">
+            ⎙ Generar Informe Diaria
+        </button>
+    </div>
+
+    <!-- Gestión de Estructura de Puestos (Colapsable o secundario) -->
+    <div class="card" style="border-style: dashed; opacity: 0.8;">
+        <details>
+            <summary style="cursor:pointer; font-size:12px; color:var(--gold);">+ Configurar Nueva Estructura de Puestos / Objetivos</summary>
+            <div style="display:flex; gap:15px; margin-top:15px;">
+                <input type="text" id="pst_nombre" placeholder="Nombre del Puesto (ej. Portería)" style="flex:2; background:#000; border:1px solid #333; color:#fff; padding:10px; border-radius:6px;">
+                <input type="number" id="pst_cant" placeholder="Plazas" style="flex:0.5; background:#000; border:1px solid #333; color:#fff; padding:10px; border-radius:6px;">
+                <button class="btn btn-gold" onclick="savePuesto()">Crear Estructura</button>
+            </div>
+        </details>
+    </div>
+
+    <!-- Contenedor de la Diaria -->
+    <div id="grid-puestos" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:25px;"></div>
+</div>
