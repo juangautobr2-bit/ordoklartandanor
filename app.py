@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Base de datos v13
-DB_PATH = '/tmp/ordoklar_v13.db'
+# Base de datos v14
+DB_PATH = '/tmp/ordoklar_v14.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -21,7 +21,7 @@ def get_db_connection():
 def index():
     return render_template_string(HTML_UI)
 
-# --- APIs (Puestos, Personal, Novedades) ---
+# --- APIs ---
 @app.route('/api/puestos', methods=['GET', 'POST'])
 def handle_puestos():
     conn = get_db_connection()
@@ -32,14 +32,6 @@ def handle_puestos():
     res = [dict(row) for row in conn.execute("SELECT * FROM puestos ORDER BY nombre ASC").fetchall()]
     conn.close()
     return jsonify(res)
-
-@app.route('/api/puestos/<int:id>', methods=['DELETE'])
-def del_puesto(id):
-    conn = get_db_connection()
-    conn.execute("DELETE FROM puestos WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"s": "ok"})
 
 @app.route('/api/personal', methods=['GET', 'POST'])
 def handle_personal():
@@ -63,48 +55,48 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ ---
+# --- INTERFAZ PREMIUM ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR | Gestión Operativa</title>
+    <title>ORDO KLAR | Gestión</title>
     <style>
         :root { --gold: #C5A059; --bg: #050505; --card: #121212; --border: #222; }
         body { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; margin: 0; }
-        .header { text-align: center; padding: 15px; font-size: 22px; letter-spacing: 8px; border-bottom: 1px solid var(--border); background: #000; }
+        .header { text-align: center; padding: 15px; font-size: 20px; letter-spacing: 6px; border-bottom: 1px solid var(--border); }
         .nav { display: flex; justify-content: center; background: var(--card); border-bottom: 2px solid var(--gold); }
-        .nav button { background: none; border: none; color: #666; padding: 15px 25px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; }
-        .nav button.active { color: var(--gold); background: #1a1a1a; }
-        .content { padding: 20px; }
+        .nav button { background: none; border: none; color: #666; padding: 12px 20px; cursor: pointer; font-weight: bold; font-size: 10px; text-transform: uppercase; }
+        .nav button.active { color: var(--gold); }
+        
+        .content { padding: 15px; }
         .section { display: none; }
         .active { display: block; }
 
-        /* TABLA */
+        /* TABLA PLANILLA */
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
         table { width: 100%; border-collapse: collapse; font-size: 10px; }
         th, td { border: 1px solid #1a1a1a; text-align: center; }
-        th { background: #111; color: var(--gold); padding: 8px 2px; }
-        .day-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 8px; color: #888; }
-        .name-col { width: 130px; text-align: left !important; padding-left: 8px; color: var(--gold); font-weight: bold; height: 35px; }
+        th { background: #111; color: var(--gold); padding: 5px; }
+        
+        .day-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 8px; color: #777; margin-bottom: 3px; display: inline-block; }
+        .name-col { width: 130px; text-align: left !important; padding-left: 8px; color: var(--gold); font-weight: bold; height: 32px; }
         .hs-col { width: 40px; background: #1a1a1a; color: var(--gold); font-weight: bold; border-left: 2px solid var(--gold) !important; }
         
-        .total-row-hs { background: #0a0a0a; color: var(--gold); font-weight: bold; border-top: 2px solid var(--gold); }
-        .total-row-per { background: #000; color: #fff; font-weight: bold; border-top: 1px solid #333; }
+        /* FILAS DE TOTALES (PIE) */
+        .total-hs { background: #0a0a0a; color: var(--gold); font-weight: bold; border-top: 2px solid var(--gold); }
+        .total-per { background: #000; color: #00e5ff; font-weight: bold; border-top: 1px solid #333; }
+        .total-per td { height: 35px; font-size: 11px; }
 
-        /* ESTADOS */
         select.cell-sel { background: transparent; color: #fff; border: none; width: 100%; height: 100%; cursor: pointer; text-align-last: center; font-weight: bold; appearance: none; }
         .st-12 { background: #1b5e20 !important; }
         .st-F { background: #333 !important; }
         .st-VAC { background: #01579b !important; }
         .st-ART { background: #b71c1c !important; }
 
-        /* FORMS */
-        .form-box { background: var(--card); padding: 15px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        input, select.form-control { background: #000; border: 1px solid #333; color: #fff; padding: 8px; border-radius: 4px; }
-        .btn-gold { background: var(--gold); border: none; padding: 8px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; color: #000; font-size: 10px; }
-        .puesto-card { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--gold); padding: 15px; border-radius: 4px; margin-bottom: 10px; }
+        .card { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 4px; margin-bottom: 10px; }
+        .btn-gold { background: var(--gold); border: none; padding: 8px 15px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -118,8 +110,8 @@ HTML_UI = '''
     <div class="content">
         <div id="s-pla" class="section active">
             <div style="display:flex; gap:10px; margin-bottom:15px; justify-content:center;">
-                <select id="sel-mes" class="form-control" onchange="render()"></select>
-                <select id="sel-anio" class="form-control" onchange="render()"></select>
+                <select id="sel-mes" style="background:#000; color:var(--gold); border:1px solid #444;" onchange="render()"></select>
+                <select id="sel-anio" style="background:#000; color:var(--gold); border:1px solid #444;" onchange="render()"></select>
             </div>
             <div class="table-wrap">
                 <table>
@@ -131,17 +123,17 @@ HTML_UI = '''
         </div>
 
         <div id="s-pue" class="section">
-            <div class="form-box">
+            <div class="card">
                 <input type="text" id="p-nom" placeholder="Puesto">
                 <input type="text" id="p-hor" placeholder="Horario">
-                <input type="number" id="p-can" placeholder="Cant. Personas">
-                <button class="btn-gold" onclick="addPuesto()">+ AGREGAR</button>
+                <input type="number" id="p-can" placeholder="Dotación">
+                <button class="btn-gold" onclick="addPuesto()">+ AGREGAR PUESTO</button>
             </div>
             <div id="g-pue"></div>
         </div>
 
         <div id="s-per" class="section">
-            <div class="form-box">
+            <div class="card">
                 <input type="text" id="i-leg" placeholder="Legajo">
                 <input type="text" id="i-ape" placeholder="Apellido">
                 <input type="text" id="i-nom" placeholder="Nombre">
@@ -190,7 +182,7 @@ HTML_UI = '''
             h += '<th class="hs-col">HS</th></tr>';
             document.getElementById('h-pla').innerHTML = h;
 
-            // CUERPO Y CÁLCULOS
+            // CUERPO
             let colTotHs = new Array(cantDias).fill(0);
             let colTotPer = new Array(cantDias).fill(0);
 
@@ -201,11 +193,13 @@ HTML_UI = '''
                     const f = `${anio}-${String(mes).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const d = nov.find(x => x.personal_id == p.id && x.fecha == f);
                     const st = d ? d.estado : 'F';
+                    
                     if(st == '12') { 
                         rowHs += 12; 
                         colTotHs[i-1] += 12; 
-                        colTotPer[i-1] += 1; 
+                        colTotPer[i-1] += 1; // Suma persona si trabaja 12hs
                     }
+
                     r += `<td class="st-${st}"><select class="cell-sel" onchange="updNov(${p.id},'${f}',this.value)">
                         <option value="12" ${st=='12'?'selected':''}>12</option>
                         <option value="F" ${st=='F'?'selected':''}>F</option>
@@ -216,19 +210,19 @@ HTML_UI = '''
                 return `<tr>${r}<td class="hs-col">${rowHs}</td></tr>`;
             }).join('');
 
-            // FOOTER CON DOS FILAS
-            let fHs = `<tr class="total-row-hs"><td class="name-col">TOTAL HS</td>`;
+            // FOOTER (Aquí están las dos filas de suma)
+            let fHs = `<tr class="total-hs"><td class="name-col">TOTAL HORAS</td>`;
             colTotHs.forEach(t => fHs += `<td>${t}</td>`);
             fHs += `<td class="hs-col">${colTotHs.reduce((a,b)=>a+b, 0)}</td></tr>`;
 
-            let fPer = `<tr class="total-row-per"><td class="name-col">CANT. PERSONAL</td>`;
+            let fPer = `<tr class="total-per"><td class="name-col">CANT. PERSONAL</td>`;
             colTotPer.forEach(t => fPer += `<td>${t}</td>`);
             fPer += `<td class="hs-col">-</td></tr>`;
 
             document.getElementById('f-pla').innerHTML = fHs + fPer;
 
-            // Render Puestos y Personal (simplificado)
-            document.getElementById('g-pue').innerHTML = pue.map(p => `<div class="puesto-card"><b>${p.nombre}</b> | ${p.horario} | Requisito: ${p.cantidad} pers.</div>`).join('');
+            // Resto de la interfaz
+            document.getElementById('g-pue').innerHTML = pue.map(p => `<div class="card"><b>${p.nombre}</b> (${p.horario}) - Req: ${p.cantidad}</div>`).join('');
             document.getElementById('l-per').innerHTML = per.map(x => `<div style="padding:5px; border-bottom:1px solid #222">${x.apellido}, ${x.nombre}</div>`).join('');
         }
 
@@ -238,14 +232,12 @@ HTML_UI = '''
         }
 
         async function addPuesto() {
-            const d = {nombre: document.getElementById('p-nom').value, horario: document.getElementById('p-hor').value, cantidad: document.getElementById('p-can').value};
-            await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+            await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:document.getElementById('p-nom').value, horario:document.getElementById('p-hor').value, cantidad:document.getElementById('p-can').value})});
             render();
         }
 
         async function addPersonal() {
-            const d = {nombre:document.getElementById('i-nom').value, apellido:document.getElementById('i-ape').value, legajo:document.getElementById('i-leg').value};
-            await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+            await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:document.getElementById('i-nom').value, apellido:document.getElementById('i-ape').value, legajo:document.getElementById('i-leg').value})});
             render();
         }
 
