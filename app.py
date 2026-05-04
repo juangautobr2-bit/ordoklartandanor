@@ -124,7 +124,7 @@ HTML_UI = '''
 
     <div class="header">
         <h1 style="margin:0; letter-spacing: 5px;">ORDO <span style="color:var(--gold)">KLAR</span></h1>
-         <h1 style="margin:0; letter-spacing: 5px;">TANDANOR <span style="color: #FF6347">WATCHMAN</span></h1>
+         <h1 style="margin:0; letter-spacing: 5px;">TANDANOR <span style="color: #dae343">WATCHMAN</span></h1>
         <p style="color:#666; font-size: 12px; margin:5px 0 0 0;">TANDANOR / WATCHMAN | v41</p>
     </div>
 
