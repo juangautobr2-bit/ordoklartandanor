@@ -124,15 +124,16 @@ HTML_UI = '''
 
     <div class="header">
         <h1 style="margin:0; letter-spacing: 5px;">ORDO <span style="color:var(--gold)">KLAR</span></h1>
+         <h1 style="margin:0; letter-spacing: 5px;">TANDANOR <span style="color:var(--gold)">WATCHMAN</span></h1>
         <p style="color:#666; font-size: 12px; margin:5px 0 0 0;">MANAGEMENT & INFRASTRUCTURE | v41</p>
     </div>
 
     <nav>
-        <button id="btn-pla" class="active" onclick="show('pla')">Planilla</button>
-        <button id="btn-pue" onclick="show('pue')">Puestos</button>
+        <button id="btn-pla" class="active" onclick="show('pla')">Planilla Mensual</button>
+        <button id="btn-pue" onclick="show('pue')">Puestos Guardias Diaria</button>
         <button id="btn-per" onclick="show('per')">Personal</button>
         <button id="btn-inf" onclick="show('inf')">Informes</button>
-        <button id="btn-arc" onclick="show('arc')">Archivos</button>
+        <button id="btn-arc" onclick="show('arc')">Archivos Historial</button>
     </nav>
 
     <div class="container">
