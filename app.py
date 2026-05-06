@@ -1,12 +1,17 @@
 import os
 import sqlite3
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, session, redirect, url_for
 from datetime import datetime
 
 app = Flask(__name__)
+app.secret_key = 'ordo_klar_secret_key_2026' # Clave para cifrar la sesión
 
-# Base de Datos - Ordo Klar v57 Final
-DB_PATH = os.path.abspath("ordoklar_v57_final.db")
+# Base de Datos - Ordo Klar v58 con Login
+DB_PATH = os.path.abspath("ordoklar_v58_auth.db")
+
+# Credenciales de acceso (Modificables)
+USER_ADMIN = "admin"
+PASS_ADMIN = "admin123"
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -25,13 +30,38 @@ def init_db():
 
 init_db()
 
+# --- RUTAS DE AUTENTICACIÓN ---
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        user = request.form.get('username')
+        pw = request.form.get('password')
+        if user == USER_ADMIN and pw == PASS_ADMIN:
+            session['logged_in'] = True
+            return redirect(url_for('index'))
+        else:
+            error = "Usuario o contraseña incorrectos"
+    
+    return render_template_string(HTML_LOGIN, error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
 @app.route('/')
 def index():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
     return render_template_string(HTML_UI)
 
-# --- API ---
+# --- API (PROTEGIDA) ---
+
 @app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
 def handle_personal():
+    if not session.get('logged_in'): return jsonify({"error": "No auth"}), 401
     conn = get_db_connection()
     if request.method == 'POST':
         d = request.json
@@ -46,6 +76,7 @@ def handle_personal():
 
 @app.route('/api/puestos', methods=['GET', 'POST', 'DELETE'])
 def handle_puestos():
+    if not session.get('logged_in'): return jsonify({"error": "No auth"}), 401
     conn = get_db_connection()
     if request.method == 'POST':
         d = request.json
@@ -60,6 +91,7 @@ def handle_puestos():
 
 @app.route('/api/novedades', methods=['GET', 'POST'])
 def handle_novedades():
+    if not session.get('logged_in'): return jsonify({"error": "No auth"}), 401
     conn = get_db_connection()
     if request.method == 'POST':
         d = request.json
@@ -71,6 +103,7 @@ def handle_novedades():
 
 @app.route('/api/archivos', methods=['GET', 'POST', 'DELETE'])
 def handle_archivos():
+    if not session.get('logged_in'): return jsonify({"error": "No auth"}), 401
     conn = get_db_connection()
     if request.method == 'POST':
         d = request.json
@@ -83,19 +116,52 @@ def handle_archivos():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ ---
+# --- HTML TEMPLATES ---
+
+HTML_LOGIN = '''
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Login | ORDO KLAR</title>
+    <style>
+        body { background: #000; color: #eee; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: #111; padding: 40px; border-radius: 10px; border: 1px solid #D4AF37; width: 300px; text-align: center; box-shadow: 0 0 20px rgba(212, 175, 55, 0.2); }
+        h1 { color: #D4AF37; letter-spacing: 5px; margin-bottom: 30px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #333; color: #fff; box-sizing: border-box; border-radius: 4px; }
+        input:focus { border-color: #D4AF37; outline: none; }
+        button { width: 100%; padding: 12px; background: #D4AF37; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 4px; margin-top: 10px; }
+        .error { color: #ff4444; font-size: 13px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h1>ORDO KLAR</h1>
+        <form method="POST">
+            <input type="text" name="username" placeholder="Usuario" required autofocus>
+            <input type="password" name="password" placeholder="Contraseña" required>
+            <button type="submit">INGRESAR</button>
+        </form>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    </div>
+</body>
+</html>
+'''
+
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR v57 | PREMIUM</title>
+    <title>ORDO KLAR v58 | PREMIUM</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; --text: #eee; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; }
+        .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); background: #0a0a0a; position: relative; }
+        .logout-link { position: absolute; right: 20px; top: 20px; color: #777; text-decoration: none; font-size: 12px; border: 1px solid #333; padding: 5px 10px; border-radius: 4px; }
+        .logout-link:hover { color: var(--gold); border-color: var(--gold); }
         
-        .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); background: #0a0a0a; }
         nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
         nav button { background: none; border: none; color: #777; padding: 15px 20px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; }
         nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
@@ -113,11 +179,11 @@ HTML_UI = '''
         th, td { border: 1px solid #333; text-align: center; padding: 6px 2px; min-width: 30px; }
         .col-name { text-align: left; min-width: 200px; padding-left: 10px; color: var(--gold); font-weight: bold; }
         
-        .st-12 { background: #1b4332 !important; } /* Verde */
-        .st-F { background: #ff8c00 !important; color: #000; font-weight: bold; } /* Naranja */
-        .st-ART { background: #6a0dad !important; } /* Violeta */
-        .st-VAC { background: #0000ff !important; } /* Azul */
-        .st-FE { background: #ff0000 !important; } /* Rojo */
+        .st-12 { background: #1b4332 !important; }
+        .st-F { background: #ff8c00 !important; color: #000; font-weight: bold; }
+        .st-ART { background: #6a0dad !important; }
+        .st-VAC { background: #0000ff !important; }
+        .st-FE { background: #ff0000 !important; }
 
         /* PUESTOS */
         .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
@@ -146,11 +212,12 @@ HTML_UI = '''
 </head>
 <body>
 
-    <div id="print-header">
-        <h1 id="print-title">ORDO KLAR - INFORME</h1>
-    </div>
+    <div id="print-header"><h1 id="print-title">ORDO KLAR - INFORME</h1></div>
 
-    <div class="header no-print"><h1>ORDO <span style="color:var(--gold)">KLAR</span></h1></div>
+    <div class="header no-print">
+        <h1>ORDO <span style="color:var(--gold)">KLAR</span></h1>
+        <a href="/logout" class="logout-link">CERRAR SESIÓN</a>
+    </div>
 
     <nav class="no-print">
         <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
@@ -206,10 +273,10 @@ HTML_UI = '''
             </div>
         </div>
 
-        <!-- ARCHIVOS (HISTORIAL) -->
+        <!-- ARCHIVOS -->
         <div id="s-arc" class="section">
             <div class="box">
-                <h3>HISTORIAL DE INFORMES ELABORADOS</h3>
+                <h3>HISTORIAL DE INFORMES</h3>
                 <div id="historial-list"></div>
             </div>
         </div>
@@ -239,7 +306,7 @@ HTML_UI = '''
             const a = parseInt(document.getElementById('a-sel').value);
             const dias = new Date(a, m, 0).getDate();
 
-            // RENDER PLANILLA
+            // PLANILLA
             let h = `<tr><th class="col-name">PERSONAL</th>`;
             for(let i=1; i<=dias; i++) h += `<th>${i}</th>`;
             h += `<th style="background:var(--gold); color:black">HS</th></tr>`;
@@ -263,7 +330,7 @@ HTML_UI = '''
                 <tr><td class="col-name">CANT. PERSONAL ACTIVO</td>${cntPer.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>
                 <tr style="background:#111"><td class="col-name">TOTAL HORAS DÍA</td>${sumHs.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>`;
 
-            // RENDER PUESTOS
+            // PUESTOS
             const opts = `<option value="">-- Seleccionar --</option>` + per.map(p => `<option>${p.apellido.toUpperCase()}, ${p.nombre}</option>`).join('');
             document.getElementById('grid-pue').innerHTML = pue.map(x => {
                 let s = "";
@@ -271,21 +338,20 @@ HTML_UI = '''
                 return `
                 <div class="card-pue" id="pue-${x.id}">
                     <div style="float:right" class="no-print"><button onclick="delPue(${x.id})" style="background:none; border:none; color:red; cursor:pointer">✖</button></div>
-                    <h3 style="margin:0">${x.nombre}</h3><small>${x.horario}</small>
+                    <h3>${x.nombre}</h3><small>${x.horario}</small>
                     ${s}
                     <button class="btn-confirm no-print" onclick="fixPue(${x.id})">CONFIRMAR PUESTO</button>
                     <button class="btn no-print" style="display:none; width:100%; margin-top:5px; font-size:10px" id="ed-${x.id}" onclick="unfixPue(${x.id})">RE-EDITAR</button>
                 </div>`;
             }).join('');
 
-            // RENDER ARCHIVOS
+            // ARCHIVOS
             document.getElementById('historial-list').innerHTML = arc.map(x => `
                 <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #333">
                     <span>📄 ${x.nombre} <small style="color:#777">(${x.fecha})</small></span>
                     <button class="btn" style="background:red; color:white; padding:5px" onclick="delArc(${x.id})">ELIMINAR</button>
                 </div>`).join('');
 
-            // RENDER LISTA PERSONAL
             document.getElementById('list-per').innerHTML = per.map(p => `
                 <tr><td>${p.legajo}</td><td>${p.apellido}</td><td>${p.nombre}</td>
                 <td><button onclick="delPer(${p.id})" style="color:red; background:none; border:none; cursor:pointer">Baja</button></td></tr>`).join('');
@@ -320,20 +386,15 @@ HTML_UI = '''
             const a = document.getElementById('a-sel').value;
             const tit = `PLANILLA MENSUAL ${m} ${a}`;
             document.getElementById('print-title').innerText = tit;
-            await logArch(tit);
+            await fetch('/api/archivos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre: tit, fecha: new Date().toLocaleString()})});
             window.print();
         }
 
         async function printPue() {
-            const hoy = new Date().toLocaleDateString();
-            const tit = `GUARDIAS - FECHA: ${hoy}`;
+            const tit = `GUARDIAS - FECHA: ${new Date().toLocaleDateString()}`;
             document.getElementById('print-title').innerText = tit;
-            await logArch(tit);
+            await fetch('/api/archivos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre: tit, fecha: new Date().toLocaleString()})});
             window.print();
-        }
-
-        async function logArch(nom) {
-            await fetch('/api/archivos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre: nom, fecha: new Date().toLocaleString()})});
         }
 
         async function addPuesto() {
@@ -348,9 +409,9 @@ HTML_UI = '''
             render();
         }
 
-        async function delArc(id) { if(confirm("¿Eliminar del historial?")) await fetch(`/api/archivos?id=${id}`, {method:'DELETE'}); render(); }
-        async function delPer(id) { if(confirm("¿Baja de personal?")) await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
-        async function delPue(id) { if(confirm("¿Eliminar puesto?")) await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
+        async function delArc(id) { await fetch(`/api/archivos?id=${id}`, {method:'DELETE'}); render(); }
+        async function delPer(id) { await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
+        async function delPue(id) { await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
 
         window.onload = () => {
             const m = document.getElementById('m-sel'); const a = document.getElementById('a-sel');
