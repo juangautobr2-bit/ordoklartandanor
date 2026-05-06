@@ -1,11 +1,12 @@
 import os
 import sqlite3
 from flask import Flask, render_template_string, request, jsonify
+from datetime import datetime
 
 app = Flask(__name__)
 
-# Base de Datos
-DB_PATH = os.path.abspath("ordoklar_v52_master.db")
+# Base de Datos - Ordo Klar v55
+DB_PATH = os.path.abspath("ordoklar_v55_master.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -18,7 +19,7 @@ def init_db():
     c.execute('CREATE TABLE IF NOT EXISTS personal (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, apellido TEXT, legajo TEXT UNIQUE)')
     c.execute('CREATE TABLE IF NOT EXISTS puestos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, horario TEXT, dotacion INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS novedades (id INTEGER PRIMARY KEY AUTOINCREMENT, personal_id INTEGER, fecha TEXT, estado TEXT, UNIQUE(personal_id, fecha))')
-    c.execute('CREATE TABLE IF NOT EXISTS historial_archivos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, tipo TEXT, fecha TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS archivos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, tipo TEXT, fecha TEXT)')
     conn.commit()
     conn.close()
 
@@ -28,8 +29,7 @@ init_db()
 def index():
     return render_template_string(HTML_UI)
 
-# --- API CONTROLADORES ---
-
+# --- API ---
 @app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
 def handle_personal():
     conn = get_db_connection()
@@ -44,16 +44,12 @@ def handle_personal():
     conn.close()
     return jsonify(res)
 
-@app.route('/api/puestos', methods=['GET', 'POST', 'DELETE', 'PUT'])
+@app.route('/api/puestos', methods=['GET', 'POST', 'DELETE'])
 def handle_puestos():
     conn = get_db_connection()
     if request.method == 'POST':
         d = request.json
         conn.execute("INSERT INTO puestos (nombre, horario, dotacion) VALUES (?, ?, ?)", (d['nombre'], d['horario'], d['dotacion']))
-        conn.commit()
-    elif request.method == 'PUT':
-        d = request.json
-        conn.execute("UPDATE puestos SET nombre=?, horario=?, dotacion=? WHERE id=?", (d['nombre'], d['horario'], d['dotacion'], d['id']))
         conn.commit()
     elif request.method == 'DELETE':
         conn.execute("DELETE FROM puestos WHERE id=?", (request.args.get('id'),))
@@ -73,181 +69,144 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
-@app.route('/api/archivos', methods=['GET', 'POST', 'DELETE'])
-def handle_archivos():
-    conn = get_db_connection()
-    if request.method == 'POST':
-        d = request.json
-        conn.execute("INSERT INTO historial_archivos (nombre, tipo, fecha) VALUES (?, ?, ?)", (d['nombre'], d['tipo'], d['fecha']))
-        conn.commit()
-    elif request.method == 'DELETE':
-        conn.execute("DELETE FROM historial_archivos WHERE id=?", (request.args.get('id'),))
-        conn.commit()
-    res = [dict(row) for row in conn.execute("SELECT * FROM historial_archivos ORDER BY id DESC").fetchall()]
-    conn.close()
-    return jsonify(res)
-
-# --- INTERFAZ ---
-
+# --- UI MAESTRA ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR v52 | Premium Management</title>
+    <title>ORDO KLAR v55</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; --text: #eee; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; }
         
-        .header { text-align: center; padding: 20px; border-bottom: 2px solid var(--gold); background: #0a0a0a; }
-        nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
-        nav button { background: none; border: none; color: #777; padding: 15px 20px; cursor: pointer; font-weight: bold; text-transform: uppercase; font-size: 11px; transition: 0.3s; }
-        nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
+        .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); background: #0a0a0a; }
+        nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); }
+        nav button { background: none; border: none; color: #777; padding: 15px; cursor: pointer; font-weight: bold; font-size: 11px; text-transform: uppercase; }
+        nav button.active { color: var(--gold); border-bottom: 2px solid var(--gold); }
 
-        .container { padding: 20px; max-width: 1400px; margin: auto; }
+        .container { padding: 20px; max-width: 100%; margin: auto; }
         .section { display: none; }
         .active-section { display: block; }
 
         .box { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-        .flex-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-        .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 120px; }
-        label { font-size: 10px; color: var(--gold); font-weight: bold; text-transform: uppercase; }
-        input, select { background: #000; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; }
-
-        .btn { background: var(--gold); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
-        .btn-red { background: #5a1818; color: #fff; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
-
-        /* TABLA PLANILLA */
-        .table-wrap { width: 100%; border: 1px solid var(--border); background: #000; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; color: #fff; }
-        th, td { border: 1px solid #222; text-align: center; padding: 6px 3px; }
-        .col-name { text-align: left; width: 180px; padding-left: 10px; color: var(--gold); font-weight: bold; }
+        .btn { background: var(--gold); color: #000; border: none; padding: 10px 18px; font-weight: bold; cursor: pointer; border-radius: 4px; font-size: 12px; }
         
-        /* ESTADOS */
-        .st-12 { background: #1b4332; } .st-ART { background: #5a1818; } .st-VAC { background: #004e89; } 
-
-        /* PUESTOS CARDS */
-        .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px; }
-        .card-pue { background: #0a0a0a; border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 8px; }
-        .card-pue h3 { margin: 0 0 5px 0; color: var(--gold); font-size: 16px; border-bottom: 1px solid #222; }
-        .slot { background: #151515; padding: 5px 10px; margin-top: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
-        .slot select { width: 70%; font-size: 11px; }
-        .slot-val { color: #fff; font-weight: bold; display: none; } /* Solo visible en PDF */
-
-        /* TITULOS DE REPORTE */
-        .report-header { text-align: center; border-bottom: 2px solid var(--gold); margin-bottom: 20px; padding-bottom: 10px; display: none; color: white; background: black; }
+        /* PLANILLA */
+        .table-wrap { overflow-x: auto; background: #000; border: 1px solid #333; }
+        table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        th, td { border: 1px solid #222; text-align: center; padding: 5px 2px; min-width: 25px; }
+        .col-name { text-align: left; min-width: 180px; padding-left: 8px; color: var(--gold); font-weight: bold; }
         
-        /* OCULTAR EN PDF */
-        .no-print-btn { } /* Clase para identificar botones a ocultar */
+        /* ESTADOS PLANILLA */
+        .st-12 { background: #1b4332; color: #fff; }
+        .st-ART { background: #5a1818; color: #fff; }
+        .st-VAC { background: #004e89; color: #fff; }
+        .st-F { background: #000; color: #444; }
+
+        /* PUESTOS */
+        .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
+        .card-pue { background: #050505; border: 1px solid var(--border); padding: 15px; border-radius: 5px; border-top: 4px solid var(--gold); position: relative; }
+        .slot { background: #111; padding: 6px; margin-top: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222; }
+        .slot select { background: #000; color: #fff; border: 1px solid #444; font-size: 11px; width: 70%; }
+        .slot-fixed { font-weight: bold; color: #fff; display: none; font-size: 12px; }
+        
+        .is-confirmed { border-top-color: #1b4332; }
+        .is-confirmed select, .is-confirmed .btn-confirm { display: none; }
+        .is-confirmed .slot-fixed { display: block; }
+        .btn-confirm { width: 100%; margin-top: 10px; background: #1b4332; color: #fff; border: none; padding: 8px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+
+        @media print { .no-print { display: none !important; } }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1 style="margin:0; letter-spacing: 5px;">ORDO <span style="color:var(--gold)">KLAR</span></h1>
-    </div>
+    <div class="header"><h1>ORDO <span style="color:var(--gold)">KLAR</span></h1></div>
 
-    <nav>
-        <button id="n-pla" class="active" onclick="tab('pla')">Planilla</button>
-        <button id="n-pue" onclick="tab('pue')">Puestos</button>
+    <nav class="no-print">
+        <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
+        <button id="n-pue" onclick="tab('pue')">Puestos de Guardia</button>
         <button id="n-per" onclick="tab('per')">Personal</button>
         <button id="n-inf" onclick="tab('inf')">Informes</button>
-        <button id="n-arc" onclick="tab('arc')">Archivos</button>
     </nav>
 
     <div class="container">
         
-        <!-- PLANILLA -->
+        <!-- PLANILLA MENSUAL -->
         <div id="s-pla" class="section active-section">
-            <div class="box flex-row">
-                <div class="form-group"><label>Mes</label><select id="m-sel" onchange="render()"></select></div>
-                <div class="form-group"><label>Año</label><select id="a-sel" onchange="render()"></select></div>
+            <div class="box no-print" style="display:flex; gap:15px">
+                <div><label>Mes:</label> <select id="m-sel" onchange="render()"></select></div>
+                <div><label>Año:</label> <select id="a-sel" onchange="render()"></select></div>
+                <button class="btn" onclick="window.print()">🖨️ Imprimir Planilla</button>
             </div>
-            <div id="area-planilla-reporte">
-                <div id="head-planilla" class="report-header">
-                    <h2 id="title-planilla" style="margin:0">PLANILLA DE NOVEDADES</h2>
-                </div>
-                <div class="table-wrap">
-                    <table id="table-planilla">
-                        <thead id="h-pla"></thead>
-                        <tbody id="b-pla"></tbody>
-                        <tfoot id="f-pla"></tfoot>
-                    </table>
-                </div>
+            <div class="table-wrap" id="print-planilla">
+                <table id="tbl-planilla">
+                    <thead id="h-pla"></thead>
+                    <tbody id="b-pla"></tbody>
+                    <tfoot id="f-pla"></tfoot>
+                </table>
             </div>
         </div>
 
         <!-- PUESTOS -->
         <div id="s-pue" class="section">
-            <div class="box">
-                <div class="flex-row">
-                    <input type="hidden" id="p-id">
-                    <div class="form-group"><label>Puesto</label><input type="text" id="p-nom"></div>
-                    <div class="form-group"><label>Horario</label><input type="text" id="p-hor"></div>
-                    <div class="form-group"><label>Dotación</label><input type="number" id="p-dot"></div>
-                    <button class="btn" onclick="savePuesto()">Guardar Puesto</button>
+            <div class="box no-print">
+                <div style="display:flex; gap:10px; flex-wrap:wrap">
+                    <input type="text" id="p-nom" placeholder="Nombre Puesto">
+                    <input type="text" id="p-hor" placeholder="Horario">
+                    <input type="number" id="p-dot" placeholder="Dotación">
+                    <button class="btn" onclick="addPuesto()">+ Agregar Puesto</button>
+                    <button class="btn" style="background:#fff" onclick="window.print()">🖨️ Imprimir Puestos</button>
                 </div>
             </div>
-
-            <div class="box" style="border-left: 5px solid var(--gold)">
-                <label style="color:var(--gold)">Configuración de Informe Puestos:</label>
-                <div class="flex-row" style="margin-top:10px">
-                    <div class="form-group"><label>Día</label><select id="rpt-dia"></select></div>
-                    <div class="form-group"><label>Mes</label><select id="rpt-mes"></select></div>
-                    <div class="form-group"><label>Año</label><select id="rpt-anio"></select></div>
-                    <button class="btn" onclick="genPuePDF()">Generar Informe Guardias</button>
-                </div>
-            </div>
-
-            <div id="area-puestos-reporte">
-                <div id="head-puestos" class="report-header">
-                    <h2 id="dynamic-title" style="margin:0"></h2>
-                </div>
-                <div id="grid-pue" class="grid-pue"></div>
-            </div>
+            <div id="grid-pue" class="grid-pue"></div>
         </div>
 
         <!-- PERSONAL -->
         <div id="s-per" class="section">
-            <div class="box flex-row">
-                <div class="form-group"><label>Legajo</label><input type="text" id="per-l"></div>
-                <div class="form-group"><label>Apellido</label><input type="text" id="per-a"></div>
-                <div class="form-group"><label>Nombre</label><input type="text" id="per-n"></div>
-                <button class="btn" onclick="addPersonal()">Alta</button>
-            </div>
-            <div id="area-nomina-reporte">
-                <div id="head-nomina" class="report-header"><h2>NÓMINA DE PERSONAL ACTIVO</h2></div>
-                <div class="box">
-                    <table style="width:100%">
-                        <thead><tr><th class="col-name">Legajo</th><th>Agente</th><th class="no-print">Acción</th></tr></thead>
-                        <tbody id="list-per"></tbody>
-                    </table>
+            <div class="box">
+                <div style="display:flex; gap:10px">
+                    <input type="text" id="per-l" placeholder="Legajo">
+                    <input type="text" id="per-a" placeholder="Apellido">
+                    <input type="text" id="per-n" placeholder="Nombre">
+                    <button class="btn" onclick="addPersonal()">Cargar Personal</button>
                 </div>
             </div>
-        </div>
-
-        <!-- INFORMES (Accesos rápidos) -->
-        <div id="s-inf" class="section">
-            <div class="box" style="text-align:center; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
-                <div class="box" style="background:#080808"><h4>Planilla Mensual</h4><button class="btn" onclick="genPlanillaPDF()">Imprimir</button></div>
-                <div class="box" style="background:#080808"><h4>Reporte Guardias</h4><button class="btn" onclick="genPuePDF()">Imprimir</button></div>
-                <div class="box" style="background:#080808"><h4>Nómina Personal</h4><button class="btn" onclick="genNominaPDF()">Imprimir</button></div>
+            <div class="box">
+                <table style="width:100%; text-align:left">
+                    <thead><tr style="color:var(--gold)"><th>Legajo</th><th>Apellido</th><th>Nombre</th><th>Acciones</th></tr></thead>
+                    <tbody id="list-per"></tbody>
+                </table>
             </div>
         </div>
 
-        <!-- ARCHIVOS -->
-        <div id="s-arc" class="section">
-            <div class="box">
-                <h3 style="color:var(--gold)">Archivos Generados</h3>
-                <div id="list-arc"></div>
+        <!-- INFORMES -->
+        <div id="s-inf" class="section">
+            <div class="box" style="text-align:center">
+                <h2>INFORMES PROFESIONALES</h2>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px">
+                    <div class="box">
+                        <h3>Nómina Actual</h3>
+                        <button class="btn" onclick="printNomina()">GENERAR PDF NÓMINA</button>
+                    </div>
+                </div>
             </div>
         </div>
 
     </div>
 
+    <!-- AREA DE IMPRESION NOMINA (OCULTA) -->
+    <div id="area-nomina-print" style="display:none; background:white; color:black; padding:40px">
+        <h1 id="tit-nomina" style="text-align:center"></h1>
+        <table style="width:100%; border:1px solid #000; margin-top:20px">
+            <thead><tr style="background:#eee"><th>NOMBRE</th><th>APELLIDO</th><th>LEGAJO</th></tr></thead>
+            <tbody id="body-nomina"></tbody>
+        </table>
+    </div>
+
     <script>
-        const mesesNombres = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO","JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
+        const meses = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO","JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
 
         function tab(t) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active-section'));
@@ -258,171 +217,121 @@ HTML_UI = '''
         }
 
         async function render() {
-            const [per, nov, pue, arc] = await Promise.all([
+            const [per, pue, nov] = await Promise.all([
                 fetch('/api/personal').then(r => r.json()),
-                fetch('/api/novedades').then(r => r.json()),
                 fetch('/api/puestos').then(r => r.json()),
-                fetch('/api/archivos').then(r => r.json())
+                fetch('/api/novedades').then(r => r.json())
             ]);
 
             const m = parseInt(document.getElementById('m-sel').value);
             const a = parseInt(document.getElementById('a-sel').value);
             const dias = new Date(a, m, 0).getDate();
 
-            // 1. Planilla
-            let h = `<tr><th class="col-name">AGENTE</th>`;
+            // RENDER PLANILLA
+            let h = `<tr><th class="col-name">PERSONAL</th>`;
             for(let i=1; i<=dias; i++) h += `<th>${i}</th>`;
             h += `<th style="background:var(--gold); color:black">HS</th></tr>`;
             document.getElementById('h-pla').innerHTML = h;
 
-            let b = ""; let sumHs = new Array(dias).fill(0); let sumPr = new Array(dias).fill(0);
+            let b = ""; let sumHs = new Array(dias).fill(0);
             per.forEach(p => {
                 let rowHs = 0;
                 let r = `<td class="col-name">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
                 for(let i=1; i<=dias; i++){
                     const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const d = nov.find(x => x.personal_id == p.id && x.fecha == f) || {estado:'F'};
-                    if(d.estado == '12') { rowHs += 12; sumHs[i-1]+=12; sumPr[i-1]++; }
-                    r += `<td class="st-${d.estado}" onclick="cycle(this, ${p.id}, '${f}')">${d.estado}</td>`;
+                    if(d.estado == '12') { rowHs += 12; sumHs[i-1] += 12; }
+                    r += `<td class="st-${d.estado}" onclick="cycleSt(this, ${p.id}, '${f}')">${d.estado}</td>`;
                 }
                 r += `<td style="font-weight:bold; color:var(--gold)">${rowHs}</td>`;
                 b += `<tr>${r}</tr>`;
             });
             document.getElementById('b-pla').innerHTML = b;
-            document.getElementById('f-pla').innerHTML = `
-                <tr style="background:#111; color:var(--gold)"><td class="col-name">TOTAL HORAS</td>${sumHs.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>
-                <tr style="background:#111; color:var(--gold)"><td class="col-name">PRESENTES</td>${sumPr.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>`;
+            document.getElementById('f-pla').innerHTML = `<tr><td class="col-name">TOTAL HORAS DÍA</td>${sumHs.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>`;
 
-            // 2. Puestos con Selector
-            const perOpts = `<option value="">-- Sin Asignar --</option>` + per.map(p => `<option value="${p.id}">${p.apellido.toUpperCase()}, ${p.nombre}</option>`).join('');
+            // RENDER PUESTOS
+            const opts = `<option value="">-- Asignar --</option>` + per.map(p => `<option>${p.apellido.toUpperCase()}, ${p.nombre}</option>`).join('');
             document.getElementById('grid-pue').innerHTML = pue.map(x => {
-                let slots = "";
-                for(let i=1; i<=x.dotacion; i++) {
-                    slots += `<div class="slot"><span>Posición ${i}</span>
-                        <select class="pue-sel">${perOpts}</select>
-                        <span class="slot-val"></span>
-                    </div>`;
-                }
-                return `<div class="card-pue">
-                    <div style="float:right" class="no-print">
-                        <button onclick="editPue(${x.id},'${x.nombre}','${x.horario}',${x.dotacion})" style="background:none; color:var(--gold); border:1px solid; cursor:pointer; font-size:9px">E</button>
-                        <button onclick="delPue(${x.id})" style="background:none; color:red; border:1px solid; cursor:pointer; font-size:9px">X</button>
-                    </div>
-                    <h3>${x.nombre}</h3>
-                    <p style="font-size:11px; color:#666">${x.horario} | Dotación: ${x.dotacion}</p>${slots}
+                let s = "";
+                for(let i=1; i<=x.dotacion; i++) s += `<div class="slot"><select>${opts}</select><span class="slot-fixed"></span></div>`;
+                return `
+                <div class="card-pue" id="pue-${x.id}">
+                    <div style="float:right" class="no-print"><button onclick="delPue(${x.id})" style="background:none; border:none; color:red; cursor:pointer">✖</button></div>
+                    <h3 style="margin:0">${x.nombre}</h3><small>${x.horario}</small>
+                    ${s}
+                    <button class="btn-confirm no-print" onclick="fixPuesto(${x.id})">CONFIRMAR PUESTO</button>
+                    <button class="btn no-print" style="display:none; width:100%; margin-top:5px; font-size:9px" id="ed-${x.id}" onclick="unfixPuesto(${x.id})">EDITAR</button>
                 </div>`;
             }).join('');
 
-            // 3. Nómina y Archivos
-            document.getElementById('list-per').innerHTML = per.map(p => `<tr><td class="col-name">${p.legajo}</td><td>${p.apellido.toUpperCase()}, ${p.nombre}</td><td class="no-print"><button class="btn-red" onclick="delPer(${p.id})">BAJA</button></td></tr>`).join('');
-            document.getElementById('list-arc').innerHTML = arc.map(x => `
-                <div class="arc-item">
-                    <span>📄 ${x.nombre}</span><span style="color:#555">${x.fecha}</span>
-                    <button class="btn-red" onclick="delArc(${x.id})">X</button>
-                </div>`).join('');
+            // RENDER PERSONAL
+            document.getElementById('list-per').innerHTML = per.map(p => `
+                <tr><td>${p.legajo}</td><td>${p.apellido}</td><td>${p.nombre}</td>
+                <td><button onclick="delPer(${p.id})" style="color:red; background:none; border:none; cursor:pointer">Eliminar</button></td></tr>
+            `).join('');
         }
 
-        // --- FUNCIONES DE IMPRESIÓN ---
-
-        async function genPlanillaPDF() {
-            const m = mesesNombres[document.getElementById('m-sel').value - 1];
-            const a = document.getElementById('a-sel').value;
-            document.getElementById('title-planilla').innerText = `PLANILLA DE NOVEDADES - ${m} ${a}`;
-            document.getElementById('head-planilla').style.display = "block";
-            
-            const opt = { margin: 10, filename: `Planilla_${m}_${a}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' } };
-            html2pdf().set(opt).from(document.getElementById('area-planilla-reporte')).save().then(() => {
-                document.getElementById('head-planilla').style.display = "none";
-                saveArc(`Planilla_${m}_${a}`);
-            });
-        }
-
-        async function genNominaPDF() {
-            document.getElementById('head-nomina').style.display = "block";
-            document.querySelectorAll('.no-print').forEach(el => el.style.visibility = 'hidden');
-            
-            const opt = { margin: 10, filename: `Nomina_Personal.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(document.getElementById('area-nomina-reporte')).save().then(() => {
-                document.getElementById('head-nomina').style.display = "none";
-                document.querySelectorAll('.no-print').forEach(el => el.style.visibility = 'visible');
-                saveArc(`Nomina_Personal`);
-            });
-        }
-
-        async function genPuePDF() {
-            const d = document.getElementById('rpt-dia').value;
-            const m = mesesNombres[document.getElementById('rpt-mes').value - 1];
-            const a = document.getElementById('rpt-anio').value;
-            const title = `GUARDIAS ${d} DEL ${m} DEL AÑO ${a}`;
-            
-            document.getElementById('dynamic-title').innerText = title;
-            document.getElementById('head-puestos').style.display = "block";
-            
-            // Convertir selects a texto para el PDF
-            document.querySelectorAll('.card-pue').forEach(card => {
-                card.querySelectorAll('.slot').forEach(slot => {
-                    const sel = slot.querySelector('select');
-                    const val = slot.querySelector('.slot-val');
-                    val.innerText = sel.options[sel.selectedIndex].text;
-                    sel.style.display = 'none';
-                    val.style.display = 'block';
-                });
-            });
-            document.querySelectorAll('.no-print').forEach(el => el.style.display = 'none');
-
-            const opt = { margin: 10, filename: `Guardias_${d}_${m}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' } };
-            html2pdf().set(opt).from(document.getElementById('area-puestos-reporte')).save().then(() => {
-                // Revertir cambios visuales
-                document.getElementById('head-puestos').style.display = "none";
-                document.querySelectorAll('.pue-sel').forEach(s => s.style.display = 'block');
-                document.querySelectorAll('.slot-val').forEach(v => v.style.display = 'none');
-                document.querySelectorAll('.no-print').forEach(el => el.style.display = 'block');
-                saveArc(title);
-            });
-        }
-
-        async function saveArc(nom) {
-            await fetch('/api/archivos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre: nom, tipo: 'PDF', fecha: new Date().toLocaleString()})});
-            render();
-        }
-
-        // --- SOPORTE CRUD ---
-        async function cycle(td, pid, fecha) {
+        async function cycleSt(td, pid, fecha) {
             const sts = ["F", "12", "ART", "VAC"];
-            let n = sts[(sts.indexOf(td.innerText) + 1) % sts.length];
-            await fetch('/api/novedades', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:fecha, estado:n})});
+            let cur = td.innerText;
+            let nxt = sts[(sts.indexOf(cur) + 1) % sts.length];
+            await fetch('/api/novedades', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:fecha, estado:nxt})});
             render();
         }
-        async function savePuesto() {
-            const id = document.getElementById('p-id').value;
+
+        function fixPuesto(id) {
+            const card = document.getElementById(`pue-${id}`);
+            card.querySelectorAll('.slot').forEach(slot => {
+                const sel = slot.querySelector('select');
+                const fixed = slot.querySelector('.slot-fixed');
+                if(sel.value) fixed.innerText = sel.value;
+            });
+            card.classList.add('is-confirmed');
+            document.getElementById(`ed-${id}`).style.display = "block";
+        }
+
+        function unfixPuesto(id) {
+            const card = document.getElementById(`pue-${id}`);
+            card.classList.remove('is-confirmed');
+            document.getElementById(`ed-${id}`).style.display = "none";
+        }
+
+        async function printNomina() {
+            const per = await fetch('/api/personal').then(r => r.json());
+            const hoy = new Date().toLocaleDateString('es-AR');
+            document.getElementById('tit-nomina').innerText = `NOMINA DE PERSONAL A LA FECHA ${hoy}`;
+            document.getElementById('body-nomina').innerHTML = per.map(p => `<tr><td>${p.nombre}</td><td>${p.apellido}</td><td>${p.legajo}</td></tr>`).join('');
+            
+            const area = document.getElementById('area-nomina-print');
+            area.style.display = 'block';
+            html2pdf().from(area).set({ margin: 10, filename: `Nomina_${hoy}.pdf` }).save().then(() => area.style.display='none');
+        }
+
+        async function addPuesto() {
             const d = { nombre: document.getElementById('p-nom').value, horario: document.getElementById('p-hor').value, dotacion: document.getElementById('p-dot').value };
-            if(id) { d.id = id; await fetch('/api/puestos', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)}); }
-            else { await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)}); }
-            document.getElementById('p-id').value=""; render();
+            await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+            render();
         }
-        function editPue(id, n, h, d) { document.getElementById('p-id').value=id; document.getElementById('p-nom').value=n; document.getElementById('p-hor').value=h; document.getElementById('p-dot').value=d; }
-        async function delPue(id) { if(confirm("¿Eliminar?")) await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
-        async function delPer(id) { if(confirm("¿Baja?")) await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
-        async function delArc(id) { await fetch(`/api/archivos?id=${id}`, {method:'DELETE'}); render(); }
+
         async function addPersonal() {
-            const d = {legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value};
-            await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)}); render();
+            const d = { legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value };
+            await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+            render();
         }
+
+        async function delPer(id) { if(confirm("¿Eliminar?")) await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
+        async function delPue(id) { if(confirm("¿Eliminar?")) await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
 
         window.onload = () => {
             const m = document.getElementById('m-sel'); const a = document.getElementById('a-sel');
-            const rD = document.getElementById('rpt-dia'); const rM = document.getElementById('rpt-mes'); const rA = document.getElementById('rpt-anio');
-            mesesNombres.forEach((n, i) => {
-                m.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`;
-                rM.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`;
-            });
-            for(let i=2025; i<=2026; i++) {
-                const opt = `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
-                a.innerHTML += opt; rA.innerHTML += opt;
-            }
-            for(let i=1; i<=31; i++) rD.innerHTML += `<option value="${i}" ${i==new Date().getDate()?'selected':''}>${i}</option>`;
+            meses.forEach((n, i) => m.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`);
+            for(let i=2025; i<=2026; i++) a.innerHTML += `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
             render();
         };
     </script>
 </body>
 </html>
+'''
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
