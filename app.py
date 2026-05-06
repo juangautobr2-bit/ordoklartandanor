@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Persistencia Total en Ruta Absoluta
-DB_PATH = os.path.abspath("ordoklar_v45_master.db")
+# Configuración de Base de Datos
+DB_PATH = os.path.abspath("ordoklar_v46_master.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -15,8 +15,11 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
+    # Tabla de Personal
     c.execute('CREATE TABLE IF NOT EXISTS personal (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, apellido TEXT, legajo TEXT UNIQUE)')
+    # Tabla de Puestos (Objetivos)
     c.execute('CREATE TABLE IF NOT EXISTS puestos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, horario TEXT, dotacion INTEGER)')
+    # Tabla de Novedades (Planilla)
     c.execute('CREATE TABLE IF NOT EXISTS novedades (id INTEGER PRIMARY KEY AUTOINCREMENT, personal_id INTEGER, fecha TEXT, estado TEXT, UNIQUE(personal_id, fecha))')
     conn.commit()
     conn.close()
@@ -27,7 +30,8 @@ init_db()
 def index():
     return render_template_string(HTML_UI)
 
-# --- APIs ---
+# --- ENDPOINTS API ---
+
 @app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
 def handle_personal():
     conn = get_db_connection()
@@ -71,70 +75,94 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
+# --- INTERFAZ DE USUARIO ---
+
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR v45 | Gestión de Puestos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORDO KLAR v46</title>
     <style>
-        :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; }
-        body { background: var(--bg); color: #FFF; font-family: 'Segoe UI', sans-serif; margin: 0; }
+        :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; --text: #EEE; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; }
         
-        .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); }
-        nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); }
-        nav button { background: none; border: none; color: #666; padding: 15px 20px; cursor: pointer; font-weight: bold; font-size: 13px; text-transform: uppercase; }
+        /* Header & Nav */
+        .header { text-align: center; padding: 20px; border-bottom: 2px solid var(--gold); background: linear-gradient(to bottom, #111, #000); }
+        nav { display: flex; justify-content: center; background: #0a0a0a; sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border); }
+        nav button { background: none; border: none; color: #777; padding: 15px 25px; cursor: pointer; font-weight: bold; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; }
         nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
 
-        .container { padding: 15px; box-sizing: border-box; }
+        .container { padding: 20px; max-width: 1400px; margin: auto; }
         .section { display: none; }
         .active-section { display: block; }
 
-        .box { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px; }
-        .flex-row { display: flex; flex-wrap: wrap; gap: 10px; }
-        input, select { background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; flex: 1; }
-        .btn { background: var(--gold); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
-        
-        /* Puestos Visuals */
-        .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
-        .card-pue { background: #080808; border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 6px; }
-        .card-pue h3 { margin: 0; color: var(--gold); text-transform: uppercase; font-size: 18px; }
-        .card-pue p { color: #888; font-size: 13px; margin: 5px 0 15px 0; }
-        
-        .assign-slot { background: #151515; padding: 8px; margin-bottom: 5px; border-radius: 4px; display: flex; align-items: center; gap: 10px; }
-        .assign-slot span { font-size: 11px; color: var(--gold); font-weight: bold; width: 60px; }
+        /* Componentes Comunes */
+        .box { background: var(--card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .flex-row { display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 200px; }
+        label { font-size: 12px; color: var(--gold); text-transform: uppercase; font-weight: bold; }
+        input, select { background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; outline: none; }
+        input:focus { border-color: var(--gold); }
+        .btn { background: var(--gold); color: #000; border: none; padding: 12px 24px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+        .btn:hover { background: #fff; }
 
-        .btn-edit { background: #333; color: white; border: none; padding: 6px; cursor: pointer; font-size: 11px; margin-right: 5px; border-radius: 3px; }
-        .btn-del { background: #5a1818; color: white; border: none; padding: 6px; cursor: pointer; font-size: 11px; border-radius: 3px; }
+        /* Estilos de Puestos */
+        .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+        .card-pue { background: #0a0a0a; border: 1px solid var(--border); border-top: 5px solid var(--gold); padding: 20px; border-radius: 8px; position: relative; }
+        .card-pue h3 { margin: 0; color: var(--gold); font-size: 20px; }
+        .card-pue .info { color: #888; font-size: 14px; margin: 10px 0; border-bottom: 1px solid #222; padding-bottom: 10px; }
+        
+        .puesto-asignacion { margin-top: 15px; }
+        .slot { background: #151515; padding: 10px; margin-bottom: 8px; border-radius: 5px; display: flex; align-items: center; justify-content: space-between; }
+        .slot span { font-size: 11px; font-weight: bold; color: #666; }
+        .slot select { width: 70%; font-size: 12px; padding: 5px; }
 
-        /* Planilla Compacta */
-        .table-wrap { width: 100%; border: 1px solid var(--border); overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
-        th, td { border: 1px solid #222; text-align: center; padding: 5px 0; }
-        .col-name { text-align: left; width: 150px; padding-left: 8px; color: var(--gold); font-weight: bold; }
-        .st-12 { background: #1b4332; } .st-F { color: #444; }
+        .actions { position: absolute; top: 15px; right: 15px; display: flex; gap: 8px; }
+        .btn-sm-edit { background: #222; color: #D4AF37; border: 1px solid #D4AF37; padding: 5px 10px; font-size: 10px; cursor: pointer; border-radius: 3px; }
+        .btn-sm-del { background: #400; color: #fff; border: none; padding: 5px 10px; font-size: 10px; cursor: pointer; border-radius: 3px; }
+
+        /* Tabla Planilla */
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        th, td { border: 1px solid #222; text-align: center; padding: 8px; font-size: 12px; }
+        th { background: #111; color: var(--gold); }
+        .col-name { text-align: left; width: 200px; position: sticky; left: 0; background: #0a0a0a; z-index: 10; font-weight: bold; }
+        
+        /* Estados */
+        .st-12 { background: #1b4332; color: #fff; }
+        .st-ART { background: #5a1818; color: #fff; }
+        .st-VAC { background: #004e89; color: #fff; }
+        .st-F { color: #555; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h1 style="margin:0; letter-spacing: 3px;">ORDO <span style="color:var(--gold)">KLAR</span></h1>
-        <p style="color:#555; font-size:10px; margin:0;">SISTEMA DE GESTIÓN TÉCNICA v45</p>
+        <h1 style="margin:0; letter-spacing: 5px;">ORDO <span style="color:var(--gold)">KLAR</span></h1>
+        <p style="color:#555; font-size:12px; margin:5px 0 0 0;">PLATAFORMA INTEGRAL DE GESTIÓN OPERATIVA</p>
     </div>
 
     <nav>
-        <button id="n-pla" class="active" onclick="tab('pla')">Planilla</button>
-        <button id="n-pue" onclick="tab('pue')">Puestos</button>
-        <button id="n-per" onclick="tab('per')">Personal</button>
+        <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
+        <button id="n-pue" onclick="tab('pue')">Gestión de Puestos</button>
+        <button id="n-per" onclick="tab('per')">Base Personal</button>
     </nav>
 
     <div class="container">
         
-        <!-- PLANILLA -->
+        <!-- SECCIÓN: PLANILLA -->
         <div id="s-pla" class="section active-section">
             <div class="box flex-row">
-                <select id="m-sel" onchange="render()"></select>
-                <select id="a-sel" onchange="render()"></select>
+                <div class="form-group">
+                    <label>Mes</label>
+                    <select id="m-sel" onchange="render()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Año</label>
+                    <select id="a-sel" onchange="render()"></select>
+                </div>
             </div>
             <div class="table-wrap">
                 <table>
@@ -144,32 +172,42 @@ HTML_UI = '''
             </div>
         </div>
 
-        <!-- PUESTOS (EDICIÓN Y ASIGNACIÓN) -->
+        <!-- SECCIÓN: PUESTOS (MEJORADA) -->
         <div id="s-pue" class="section">
             <div class="box">
-                <h4 id="form-title" style="margin-top:0; color:var(--gold)">NUEVO OBJETIVO / PUESTO</h4>
+                <h3 id="pue-form-title" style="margin-top:0; color:var(--gold)">Configurar Nuevo Puesto</h3>
                 <div class="flex-row">
                     <input type="hidden" id="p-id">
-                    <input type="text" id="p-nom" placeholder="Nombre del Puesto">
-                    <input type="text" id="p-hor" placeholder="Horario (Ej: 07:00 a 19:00)">
-                    <input type="number" id="p-dot" placeholder="Cant. Personal Requerido">
-                    <button class="btn" id="p-btn" onclick="savePuesto()">Guardar Puesto</button>
+                    <div class="form-group">
+                        <label>Nombre del Objetivo / Puesto</label>
+                        <input type="text" id="p-nom" placeholder="Ej: Portería Central">
+                    </div>
+                    <div class="form-group">
+                        <label>Rango Horario</label>
+                        <input type="text" id="p-hor" placeholder="Ej: 06:00 a 18:00">
+                    </div>
+                    <div class="form-group">
+                        <label>Dotación (Cant. Personal)</label>
+                        <input type="number" id="p-dot" placeholder="Ej: 2">
+                    </div>
+                    <button class="btn" id="p-btn-main" onclick="savePuesto()">Guardar Cambios</button>
+                    <button class="btn" style="background:#333; color:white" onclick="clearPuestoForm()">Cancelar</button>
                 </div>
             </div>
             <div id="grid-pue" class="grid-pue"></div>
         </div>
 
-        <!-- PERSONAL -->
+        <!-- SECCIÓN: PERSONAL -->
         <div id="s-per" class="section">
             <div class="box flex-row">
-                <input type="text" id="per-l" placeholder="Legajo">
-                <input type="text" id="per-a" placeholder="Apellido">
-                <input type="text" id="per-n" placeholder="Nombre">
-                <button class="btn" onclick="addPersonal()">Alta Agente</button>
+                <div class="form-group"><label>Legajo</label><input type="text" id="per-l"></div>
+                <div class="form-group"><label>Apellido</label><input type="text" id="per-a"></div>
+                <div class="form-group"><label>Nombre</label><input type="text" id="per-n"></div>
+                <button class="btn" onclick="addPersonal()">Dar de Alta</button>
             </div>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th class="col-name">Legajo</th><th>Nombre</th><th>Acción</th></tr></thead>
+            <div class="box">
+                <table style="min-width: 100%;">
+                    <thead><tr><th>Legajo</th><th>Apellido y Nombre</th><th>Acciones</th></tr></thead>
                     <tbody id="list-per"></tbody>
                 </table>
             </div>
@@ -201,115 +239,157 @@ HTML_UI = '''
             const dias = new Date(a, m, 0).getDate();
 
             // Render Planilla
-            let h = `<tr><th class="col-name">PERSONAL</th>`;
+            let h = `<tr><th class="col-name">LISTADO DE AGENTES</th>`;
             for(let i=1; i<=dias; i++) h += `<th>${i}</th>`;
             h += `</tr>`;
             document.getElementById('h-pla').innerHTML = h;
 
             let b = "";
             per.forEach(p => {
-                let r = `<td class="col-name">${p.apellido.toUpperCase()}, ${p.nombre[0]}.</td>`;
+                let r = `<td class="col-name">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
                 for(let i=1; i<=dias; i++){
                     const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const d = nov.find(x => x.personal_id == p.id && x.fecha == f) || {estado:'F'};
-                    r += `<td class="st-${d.estado}" onclick="cycle(this, ${p.id}, '${f}')">${d.estado}</td>`;
+                    r += `<td class="st-${d.estado}" style="cursor:pointer" onclick="cycle(this, ${p.id}, '${f}')">${d.estado}</td>`;
                 }
                 b += `<tr>${r}</tr>`;
             });
             document.getElementById('b-pla').innerHTML = b;
 
-            // Render Puestos Cards
+            // Render Puestos (Tarjetas con personal asignado)
             document.getElementById('grid-pue').innerHTML = pue.map(x => {
                 let slots = "";
                 for(let i=1; i<=x.dotacion; i++){
                     slots += `
-                    <div class="assign-slot">
-                        <span>PUESTO ${i}</span>
+                    <div class="slot">
+                        <span>POSICIÓN ${i}</span>
                         <select>
-                            <option>-- Asignar Agente --</option>
-                            ${per.map(p => `<option>${p.apellido}, ${p.nombre}</option>`).join('')}
+                            <option value="">-- Sin Asignar --</option>
+                            ${per.map(p => `<option value="${p.id}">${p.apellido}, ${p.nombre}</option>`).join('')}
                         </select>
                     </div>`;
                 }
                 return `
                 <div class="card-pue">
-                    <div style="float:right">
-                        <button class="btn-edit" onclick="editPue(${x.id}, '${x.nombre}', '${x.horario}', ${x.dotacion})">EDITAR</button>
-                        <button class="btn-del" onclick="delPue(${x.id})">X</button>
+                    <div class="actions">
+                        <button class="btn-sm-edit" onclick="editPuesto(${x.id}, '${x.nombre}', '${x.horario}', ${x.dotacion})">EDITAR</button>
+                        <button class="btn-sm-del" onclick="delPuesto(${x.id})">ELIMINAR</button>
                     </div>
                     <h3>${x.nombre}</h3>
-                    <p>${x.horario} | Dotación: ${x.dotacion}</p>
-                    <div class="slots-container">${slots}</div>
+                    <div class="info">H: ${x.horario} | Personal: ${x.dotacion}</div>
+                    <div class="puesto-asignacion">${slots}</div>
                 </div>`;
             }).join('');
 
-            // Listado Personal
+            // Render Lista Personal en pestaña Personal
             document.getElementById('list-per').innerHTML = per.map(p => `
-                <tr><td>${p.legajo}</td><td>${p.apellido}, ${p.nombre}</td>
-                <td><button class="btn-del" onclick="delPer(${p.id})">BORRAR</button></td></tr>
+                <tr>
+                    <td>${p.legajo}</td>
+                    <td>${p.apellido.toUpperCase()}, ${p.nombre}</td>
+                    <td><button class="btn-sm-del" onclick="delPersonal(${p.id})">BAJA</button></td>
+                </tr>
             `).join('');
         }
 
+        // --- FUNCIONES DE PUESTOS ---
+
         async function savePuesto() {
             const id = document.getElementById('p-id').value;
-            const data = {
+            const payload = {
                 nombre: document.getElementById('p-nom').value,
                 horario: document.getElementById('p-hor').value,
-                dotacion: document.getElementById('p-dot').value
+                dotacion: parseInt(document.getElementById('p-dot').value)
             };
 
-            if(id) {
-                data.id = id;
-                await fetch('/api/puestos', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-            } else {
-                await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-            }
-            
-            resetForm();
+            if(!payload.nombre || !payload.dotacion) return alert("Complete nombre y dotación");
+
+            const method = id ? 'PUT' : 'POST';
+            if(id) payload.id = id;
+
+            await fetch('/api/puestos', {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            clearPuestoForm();
             render();
         }
 
-        function editPue(id, nom, hor, dot) {
+        function editPuesto(id, nom, hor, dot) {
             document.getElementById('p-id').value = id;
             document.getElementById('p-nom').value = nom;
             document.getElementById('p-hor').value = hor;
             document.getElementById('p-dot').value = dot;
-            document.getElementById('form-title').innerText = "EDITAR PUESTO: " + nom;
-            document.getElementById('p-btn').innerText = "Actualizar Puesto";
+            document.getElementById('pue-form-title').innerText = "Editando: " + nom;
+            document.getElementById('p-btn-main').innerText = "Actualizar Puesto";
+            window.scrollTo({top: 0, behavior: 'smooth'});
         }
 
-        function resetForm() {
+        async function delPuesto(id) {
+            if(confirm("¿Seguro que desea eliminar este puesto?")) {
+                await fetch(`/api/puestos?id=${id}`, { method: 'DELETE' });
+                render();
+            }
+        }
+
+        function clearPuestoForm() {
             document.getElementById('p-id').value = "";
             document.getElementById('p-nom').value = "";
             document.getElementById('p-hor').value = "";
             document.getElementById('p-dot').value = "";
-            document.getElementById('form-title').innerText = "NUEVO OBJETIVO / PUESTO";
-            document.getElementById('p-btn').innerText = "Guardar Puesto";
+            document.getElementById('pue-form-title').innerText = "Configurar Nuevo Puesto";
+            document.getElementById('p-btn-main').innerText = "Guardar Cambios";
         }
+
+        // --- FUNCIONES DE PLANILLA Y PERSONAL ---
 
         async function cycle(td, pid, fecha) {
-            const sts = ["F", "12", "ART", "VAC"];
-            let n = sts[(sts.indexOf(td.innerText) + 1) % sts.length];
-            await fetch('/api/novedades', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:fecha, estado:n})});
+            const estados = ["F", "12", "ART", "VAC"];
+            let actual = td.innerText;
+            let prox = estados[(estados.indexOf(actual) + 1) % estados.length];
+            await fetch('/api/novedades', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({p_id: pid, fecha: fecha, estado: prox})
+            });
             render();
         }
 
-        async function delPue(id) { if(confirm("¿Eliminar puesto?")) { await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); } }
         async function addPersonal() {
-            const d = {legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value};
-            await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+            const data = {
+                legajo: document.getElementById('per-l').value,
+                apellido: document.getElementById('per-a').value,
+                nombre: document.getElementById('per-n').value
+            };
+            await fetch('/api/personal', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
             render();
         }
-        async function delPer(id) { if(confirm("¿Borrar agente?")) { await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); } }
 
+        async function delPersonal(id) {
+            if(confirm("¿Eliminar agente?")) {
+                await fetch(`/api/personal?id=${id}`, { method: 'DELETE' });
+                render();
+            }
+        }
+
+        // --- INICIO ---
         window.onload = () => {
-            const m = document.getElementById('m-sel'); const a = document.getElementById('a-sel');
+            const mSel = document.getElementById('m-sel');
+            const aSel = document.getElementById('a-sel');
             const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-            meses.forEach((n, i) => m.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`);
-            for(let i=2025; i<=2026; i++) a.innerHTML += `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
+            meses.forEach((m, i) => mSel.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${m}</option>`);
+            for(let i=2025; i<=2027; i++) aSel.innerHTML += `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
             render();
         };
     </script>
 </body>
 </html>
 '''
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
