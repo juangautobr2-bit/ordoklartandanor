@@ -3,7 +3,8 @@ import sqlite3
 from flask import Flask, render_template_string, request, jsonify, session, redirect, url_for
 
 app = Flask(__name__)
-app.secret_key = 'ordo_klar_v67_final_test'
+# Clave para cifrar las cookies de sesión
+app.secret_key = 'ordo_klar_v67_secure_key'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "ordoklar_v67.db")
@@ -25,22 +26,40 @@ def init_db():
 
 init_db()
 
+# --- RUTAS DE ACCESO ---
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
     if request.method == 'POST':
-        if request.form.get('username') == "admin" and request.form.get('password') == "admin123":
+        # Credenciales de acceso
+        user = request.form.get('username')
+        pssw = request.form.get('password')
+        
+        if user == "admin" and pssw == "admin123":
             session['logged_in'] = True
             return redirect(url_for('index'))
-    return render_template_string(HTML_LOGIN)
+        else:
+            error = "Credenciales incorrectas"
+            
+    return render_template_string(HTML_LOGIN, error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
 
 @app.route('/')
 def index():
-    if not session.get('logged_in'): return redirect(url_for('login'))
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
     return render_template_string(HTML_UI)
 
-# --- API ---
+# --- API (Protegidas por sesión) ---
+
 @app.route('/api/puestos', methods=['GET', 'POST', 'DELETE'])
 def handle_puestos():
+    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
     with get_db_connection() as conn:
         if request.method == 'POST':
             d = request.json
@@ -64,6 +83,7 @@ def handle_puestos():
 
 @app.route('/api/asignar', methods=['POST'])
 def asignar_personal():
+    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
     d = request.json
     with get_db_connection() as conn:
         if not d.get('personal_id'):
@@ -76,6 +96,7 @@ def asignar_personal():
 
 @app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
 def handle_personal():
+    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
     with get_db_connection() as conn:
         if request.method == 'POST':
             d = request.json
@@ -89,6 +110,7 @@ def handle_personal():
 
 @app.route('/api/novedades', methods=['GET', 'POST'])
 def handle_novedades():
+    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
     with get_db_connection() as conn:
         if request.method == 'POST':
             d = request.json
@@ -98,14 +120,30 @@ def handle_novedades():
         res = [dict(row) for row in conn.execute("SELECT * FROM novedades").fetchall()]
     return jsonify(res)
 
-# --- UI HTML ---
+# --- UI TEMPLATES ---
+
 HTML_LOGIN = '''
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Login</title><style>
-body{background:#000;color:#D4AF37;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;}
-.box{border:1px solid #D4AF37;padding:30px;border-radius:10px;text-align:center;}
-input{display:block;width:100%;margin:10px 0;padding:10px;background:#111;color:#fff;border:1px solid #333;}
-button{width:100%;padding:10px;background:#D4AF37;color:#000;font-weight:bold;border:none;cursor:pointer;}
-</style></head><body><div class="box"><h1>ORDO KLAR</h1><form method="POST"><input name="username" placeholder="Usuario"><input type="password" name="password" placeholder="Clave"><button>ENTRAR</button></form></div></body></html>
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ORDO KLAR - Acceso</title>
+<style>
+    body { background: #000; color: #D4AF37; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Segoe UI', sans-serif; margin: 0; }
+    .login-box { background: #111; border: 1px solid #D4AF37; padding: 40px; border-radius: 12px; text-align: center; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h1 { letter-spacing: 4px; margin-bottom: 30px; font-weight: 300; }
+    input { display: block; width: 100%; margin: 15px 0; padding: 12px; background: #000; color: #fff; border: 1px solid #333; border-radius: 5px; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; background: #D4AF37; color: #000; font-weight: bold; border: none; cursor: pointer; border-radius: 5px; transition: 0.3s; }
+    button:hover { background: #fff; }
+    .error { color: #ff4444; font-size: 14px; margin-bottom: 10px; }
+</style></head>
+<body>
+    <div class="login-box">
+        <h1>ORDO <span style="font-weight:bold">KLAR</span></h1>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
+        <form method="POST">
+            <input name="username" placeholder="Usuario" required autocomplete="off">
+            <input type="password" name="password" placeholder="Contraseña" required>
+            <button type="submit">ENTRAR</button>
+        </form>
+    </div>
+</body></html>
 '''
 
 HTML_UI = '''
@@ -113,7 +151,8 @@ HTML_UI = '''
 <style>
     :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; --text: #eee; }
     body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; }
-    .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); }
+    .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); position: relative; }
+    .logout { position: absolute; right: 20px; top: 25px; color: #777; text-decoration: none; font-size: 12px; }
     nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
     nav button { background: none; border: none; color: #777; padding: 15px 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
     nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
@@ -134,7 +173,10 @@ HTML_UI = '''
     .btn-del { color: #ff4444; background: none; border: none; cursor: pointer; }
 </style>
 </head><body>
-    <div class="header"><h1>ORDO <span style="color:var(--gold)">KLAR</span></h1></div>
+    <div class="header">
+        <h1>ORDO <span style="color:var(--gold)">KLAR</span></h1>
+        <a href="/logout" class="logout">CERRAR SESIÓN</a>
+    </div>
     <nav>
         <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
         <button id="n-pue" onclick="tab('pue')">Puestos</button>
@@ -199,7 +241,6 @@ HTML_UI = '''
             fetch('/api/novedades').then(r=>r.json())
         ]);
 
-        // Actualizar tabla personal (independiente de la tab actual)
         const listPer = document.getElementById('list-per');
         if(listPer) {
             listPer.innerHTML = per.map(p => `
@@ -281,9 +322,11 @@ HTML_UI = '''
 
     window.onload = () => {
         const ms = document.getElementById('m-sel'); const as = document.getElementById('a-sel');
-        meses.forEach((n,i)=>ms.innerHTML+=`<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`);
-        for(let i=2025;i<=2027;i++) as.innerHTML+=`<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
-        render();
+        if(ms && as){
+            meses.forEach((n,i)=>ms.innerHTML+=`<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`);
+            for(let i=2025;i<=2027;i++) as.innerHTML+=`<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
+            render();
+        }
     };
 </script>
 </body></html>
