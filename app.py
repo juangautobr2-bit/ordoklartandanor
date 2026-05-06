@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Base de Datos
-DB_PATH = os.path.abspath("ordoklar_v49_final.db")
+# Base de Datos - Persistencia garantizada
+DB_PATH = os.path.abspath("ordoklar_v50_master.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -28,7 +28,7 @@ init_db()
 def index():
     return render_template_string(HTML_UI)
 
-# --- API ENDPOINTS ---
+# --- API CONTROLADORES ---
 
 @app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
 def handle_personal():
@@ -87,65 +87,76 @@ def handle_archivos():
     conn.close()
     return jsonify(res)
 
-# --- INTERFAZ HTML ---
+# --- INTERFAZ DE USUARIO (HTML/CSS/JS) ---
 
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR v49 | Master Panel</title>
+    <title>ORDO KLAR v50 | Sistema de Gestión</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; }
-        body { background: var(--bg); color: #FFF; font-family: 'Segoe UI', sans-serif; margin: 0; }
+        :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; --text: #eee; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; }
         
-        .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); }
-        nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); position: sticky; top:0; z-index:99; }
-        nav button { background: none; border: none; color: #666; padding: 15px 20px; cursor: pointer; font-weight: bold; font-size: 12px; text-transform: uppercase; }
+        .header { text-align: center; padding: 20px; border-bottom: 2px solid var(--gold); background: linear-gradient(to bottom, #111, #000); }
+        nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); sticky; top: 0; z-index: 100; }
+        nav button { background: none; border: none; color: #777; padding: 15px 20px; cursor: pointer; font-weight: bold; text-transform: uppercase; font-size: 12px; }
         nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
 
-        .container { padding: 15px; }
+        .container { padding: 20px; max-width: 1400px; margin: auto; }
         .section { display: none; }
         .active-section { display: block; }
 
-        .box { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px; }
+        .box { background: var(--card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .flex-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
         .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 150px; }
-        label { font-size: 11px; color: var(--gold); font-weight: bold; }
-        input, select { background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; }
-        
-        .btn { background: var(--gold); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
-        .btn-red { background: #5a1818; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
+        label { font-size: 11px; color: var(--gold); font-weight: bold; text-transform: uppercase; }
+        input, select { background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; outline: none; }
+        input:focus { border-color: var(--gold); }
 
-        /* PLANILLA */
-        .table-wrap { width: 100%; border: 1px solid var(--border); background: #000; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
-        th, td { border: 1px solid #222; text-align: center; padding: 4px 0; }
-        .col-name { text-align: left; width: 140px; padding-left: 8px; color: var(--gold); font-weight: bold; }
-        .col-total { width: 35px; background: #151515; font-weight: bold; color: var(--gold); }
+        .btn { background: var(--gold); color: #000; border: none; padding: 12px 24px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: 0.3s; }
+        .btn:hover { background: #fff; }
+        .btn-del { background: #5a1818; color: #fff; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; }
+
+        /* PLANILLA TABLA */
+        .table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--border); background: #000; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { border: 1px solid #222; text-align: center; padding: 6px 3px; }
+        th { background: #111; color: var(--gold); }
+        .col-name { text-align: left; width: 180px; padding-left: 10px; font-weight: bold; color: var(--gold); }
+        .col-total { width: 45px; background: #151515; font-weight: bold; color: var(--gold); border-left: 2px solid var(--gold); }
         .row-total { background: #080808; color: var(--gold); font-weight: bold; }
-        .st-12 { background: #1b4332; } .st-ART { background: #5a1818; } .st-VAC { background: #004e89; } .st-F { color: #444; }
+
+        /* Estados Novedades */
+        .st-12 { background: #1b4332; color: #fff; } 
+        .st-ART { background: #5a1818; color: #fff; } 
+        .st-VAC { background: #004e89; color: #fff; } 
+        .st-F { color: #555; }
 
         /* PUESTOS CARDS */
-        .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
-        .card-pue { background: #0a0a0a; border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 6px; }
-        .slot { background: #151515; padding: 5px; margin-top: 5px; font-size: 10px; display: flex; justify-content: space-between; }
+        .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .card-pue { background: #0a0a0a; border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 8px; position: relative; }
+        .card-pue h3 { margin: 0; color: var(--gold); }
+        .slot { background: #151515; padding: 6px; margin-top: 5px; border-radius: 4px; display: flex; justify-content: space-between; font-size: 11px; }
 
         /* ARCHIVOS */
-        .arc-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #222; }
+        .arc-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #222; }
+        .arc-item:hover { background: #0d0d0d; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <h1 style="margin:0; letter-spacing: 5px;">ORDO <span style="color:var(--gold)">KLAR</span></h1>
+        <p style="color:#555; font-size:10px; margin-top:5px; text-transform: uppercase;">Módulo de Gestión de Seguridad e Higiene</p>
     </div>
 
     <nav>
-        <button id="n-pla" class="active" onclick="tab('pla')">Planilla</button>
-        <button id="n-pue" onclick="tab('pue')">Puestos</button>
-        <button id="n-per" onclick="tab('per')">Personal</button>
+        <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
+        <button id="n-pue" onclick="tab('pue')">Gestión Puestos</button>
+        <button id="n-per" onclick="tab('per')">Nómina Personal</button>
         <button id="n-inf" onclick="tab('inf')">Informes</button>
         <button id="n-arc" onclick="tab('arc')">Archivos</button>
     </nav>
@@ -155,8 +166,8 @@ HTML_UI = '''
         <!-- PLANILLA -->
         <div id="s-pla" class="section active-section">
             <div class="box flex-row">
-                <div class="form-group"><label>Mes</label><select id="m-sel" onchange="render()"></select></div>
-                <div class="form-group"><label>Año</label><select id="a-sel" onchange="render()"></select></div>
+                <div class="form-group"><label>Seleccionar Mes</label><select id="m-sel" onchange="render()"></select></div>
+                <div class="form-group"><label>Seleccionar Año</label><select id="a-sel" onchange="render()"></select></div>
             </div>
             <div class="table-wrap" id="area-planilla">
                 <table>
@@ -169,12 +180,15 @@ HTML_UI = '''
 
         <!-- PUESTOS -->
         <div id="s-pue" class="section">
-            <div class="box flex-row">
-                <input type="hidden" id="p-id">
-                <div class="form-group"><label>Objetivo</label><input type="text" id="p-nom"></div>
-                <div class="form-group"><label>Horario</label><input type="text" id="p-hor"></div>
-                <div class="form-group"><label>Dotación</label><input type="number" id="p-dot"></div>
-                <button class="btn" onclick="savePuesto()">Guardar</button>
+            <div class="box">
+                <h3 id="pue-form-title" style="margin-top:0; color:var(--gold)">Configurar Nuevo Objetivo</h3>
+                <div class="flex-row">
+                    <input type="hidden" id="p-id">
+                    <div class="form-group"><label>Nombre del Puesto</label><input type="text" id="p-nom"></div>
+                    <div class="form-group"><label>Rango Horario</label><input type="text" id="p-hor"></div>
+                    <div class="form-group"><label>Dotación Requerida</label><input type="number" id="p-dot"></div>
+                    <button class="btn" onclick="savePuesto()">Guardar Cambios</button>
+                </div>
             </div>
             <div id="grid-pue" class="grid-pue"></div>
         </div>
@@ -185,11 +199,11 @@ HTML_UI = '''
                 <div class="form-group"><label>Legajo</label><input type="text" id="per-l"></div>
                 <div class="form-group"><label>Apellido</label><input type="text" id="per-a"></div>
                 <div class="form-group"><label>Nombre</label><input type="text" id="per-n"></div>
-                <button class="btn" onclick="addPersonal()">Dar de Alta</button>
+                <button class="btn" onclick="addPersonal()">Alta de Agente</button>
             </div>
             <div class="box" id="area-nomina">
                 <table style="width:100%">
-                    <thead><tr><th class="col-name">Legajo</th><th>Agente</th><th>Acción</th></tr></thead>
+                    <thead><tr><th class="col-name">Legajo</th><th>Apellido y Nombre</th><th>Gestión</th></tr></thead>
                     <tbody id="list-per"></tbody>
                 </table>
             </div>
@@ -197,18 +211,22 @@ HTML_UI = '''
 
         <!-- INFORMES -->
         <div id="s-inf" class="section">
-            <div class="box" style="text-align:center; display: grid; gap: 15px; grid-template-columns: 1fr 1fr 1fr;">
-                <div class="box">
-                    <h4>PLANILLA MENSUAL</h4>
-                    <button class="btn" onclick="genPDF('area-planilla', 'Planilla_Mensual')">Imprimir Planilla</button>
-                </div>
-                <div class="box">
-                    <h4>ESTRUCTURA PUESTOS</h4>
-                    <button class="btn" onclick="genPDF('grid-pue', 'Reporte_Puestos')">Imprimir Puestos</button>
-                </div>
-                <div class="box">
-                    <h4>NÓMINA PERSONAL</h4>
-                    <button class="btn" onclick="genPDF('area-nomina', 'Nomina_Personal')">Imprimir Nómina</button>
+            <div class="box" style="text-align:center">
+                <h2 style="color:var(--gold)">Centro de Impresión y Reportes</h2>
+                <p style="color:#888">Seleccione el documento que desea exportar a formato PDF:</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 30px;">
+                    <div class="box" style="background:#080808">
+                        <h4>PLANILLA DE NOVEDADES</h4>
+                        <button class="btn" onclick="genPDF('area-planilla', 'Planilla_Mensual')">Exportar Planilla</button>
+                    </div>
+                    <div class="box" style="background:#080808">
+                        <h4>ESTRUCTURA DE OBJETIVOS</h4>
+                        <button class="btn" onclick="genPDF('grid-pue', 'Estructura_Puestos')">Exportar Puestos</button>
+                    </div>
+                    <div class="box" style="background:#080808">
+                        <h4>NÓMINA GENERAL</h4>
+                        <button class="btn" onclick="genPDF('area-nomina', 'Nomina_Personal')">Exportar Nómina</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -216,7 +234,7 @@ HTML_UI = '''
         <!-- ARCHIVOS -->
         <div id="s-arc" class="section">
             <div class="box">
-                <h3 style="color:var(--gold)">Archivos Generados</h3>
+                <h3 style="color:var(--gold)">Historial de Documentos Generados</h3>
                 <div id="list-arc"></div>
             </div>
         </div>
@@ -244,8 +262,8 @@ HTML_UI = '''
             const a = parseInt(document.getElementById('a-sel').value);
             const dias = new Date(a, m, 0).getDate();
 
-            // 1. Planilla
-            let h = `<tr><th class="col-name">PERSONAL</th>`;
+            // 1. Lógica de Planilla
+            let h = `<tr><th class="col-name">LISTADO AGENTES</th>`;
             for(let i=1; i<=dias; i++) h += `<th>${i}</th>`;
             h += `<th class="col-total">HS</th></tr>`;
             document.getElementById('h-pla').innerHTML = h;
@@ -253,7 +271,7 @@ HTML_UI = '''
             let b = ""; let sumHs = new Array(dias).fill(0); let sumPr = new Array(dias).fill(0);
             per.forEach(p => {
                 let rowHs = 0;
-                let r = `<td class="col-name">${p.apellido.toUpperCase()}, ${p.nombre[0]}.</td>`;
+                let r = `<td class="col-name">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
                 for(let i=1; i<=dias; i++){
                     const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const d = nov.find(x => x.personal_id == p.id && x.fecha == f) || {estado:'F'};
@@ -264,29 +282,29 @@ HTML_UI = '''
                 b += `<tr>${r}</tr>`;
             });
             document.getElementById('b-pla').innerHTML = b;
-            let f = `<tr class="row-total"><td class="col-name">TOTAL HORAS</td>${sumHs.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>`;
-            f += `<tr class="row-total"><td class="col-name">PRESENTE</td>${sumPr.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>`;
+            let f = `<tr class="row-total"><td class="col-name">TOTAL HORAS</td>${sumHs.map(v=>`<td>${v}</td>`).join('')}<td class="col-total">-</td></tr>`;
+            f += `<tr class="row-total"><td class="col-name">PERS. PRESENTE</td>${sumPr.map(v=>`<td>${v}</td>`).join('')}<td class="col-total">-</td></tr>`;
             document.getElementById('f-pla').innerHTML = f;
 
-            // 2. Puestos
+            // 2. Lógica de Puestos
             document.getElementById('grid-pue').innerHTML = pue.map(x => {
-                let s = ""; for(let i=1; i<=x.dotacion; i++) s+=`<div class="slot"><span>Posición ${i}</span><span>--</span></div>`;
+                let s = ""; for(let i=1; i<=x.dotacion; i++) s+=`<div class="slot"><span>Posición ${i}</span><span style="color:#444">Sin Asignar</span></div>`;
                 return `<div class="card-pue">
-                    <div style="float:right">
-                        <button class="btn-red" style="background:#333" onclick="editPue(${x.id},'${x.nombre}','${x.horario}',${x.dotacion})">E</button>
-                        <button class="btn-red" onclick="delPue(${x.id})">X</button>
+                    <div style="position:absolute; top:10px; right:10px;">
+                        <button onclick="editPue(${x.id},'${x.nombre}','${x.horario}',${x.dotacion})" style="background:none; border:1px solid var(--gold); color:var(--gold); cursor:pointer; font-size:10px; margin-right:5px">E</button>
+                        <button onclick="delPue(${x.id})" style="background:none; border:1px solid #5a1818; color:#f55; cursor:pointer; font-size:10px">X</button>
                     </div>
-                    <h3 style="color:var(--gold);margin:0">${x.nombre}</h3>
-                    <p style="font-size:11px;color:#666">${x.horario}</p>${s}</div>`;
+                    <h3>${x.nombre}</h3>
+                    <p style="font-size:12px; color:#666">${x.horario} | Dotación: ${x.dotacion}</p>${s}</div>`;
             }).join('');
 
             // 3. Nómina y Archivos
-            document.getElementById('list-per').innerHTML = per.map(p => `<tr><td>${p.legajo}</td><td>${p.apellido}, ${p.nombre}</td><td><button class="btn-red" onclick="delPer(${p.id})">X</button></td></tr>`).join('');
+            document.getElementById('list-per').innerHTML = per.map(p => `<tr><td class="col-name">${p.legajo}</td><td>${p.apellido.toUpperCase()}, ${p.nombre}</td><td><button class="btn-del" onclick="delPer(${p.id})">BAJA</button></td></tr>`).join('');
             document.getElementById('list-arc').innerHTML = arc.map(x => `
-                <div class="arc-row">
+                <div class="arc-item">
                     <span>📄 ${x.nombre}</span>
-                    <span style="color:#555">${x.fecha}</span>
-                    <button class="btn-red" onclick="delArc(${x.id})">Eliminar</button>
+                    <span style="color:#555; font-size:12px">${x.fecha}</span>
+                    <button class="btn-del" onclick="delArc(${x.id})">ELIMINAR</button>
                 </div>`).join('');
         }
 
@@ -298,7 +316,7 @@ HTML_UI = '''
         }
 
         async function genPDF(divId, label) {
-            const name = `${label}_${Date.now()}.pdf`;
+            const name = `${label}_${new Date().getTime()}.pdf`;
             const opt = { margin: 10, filename: name, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' } };
             html2pdf().set(opt).from(document.getElementById(divId)).save().then(async () => {
                 await fetch('/api/archivos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre: name, tipo: 'PDF', fecha: new Date().toLocaleString()})});
@@ -315,9 +333,10 @@ HTML_UI = '''
         }
 
         function editPue(id, n, h, d) { document.getElementById('p-id').value=id; document.getElementById('p-nom').value=n; document.getElementById('p-hor').value=h; document.getElementById('p-dot').value=d; }
-        async function delPue(id) { if(confirm("¿Eliminar?")) await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
-        async function delPer(id) { if(confirm("¿Baja?")) await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
-        async function delArc(id) { await fetch(`/api/archivos?id=${id}`, {method:'DELETE'}); render(); }
+        async function delPue(id) { if(confirm("¿Eliminar puesto?")) await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
+        async function delPer(id) { if(confirm("¿Dar de baja al agente?")) await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
+        async function delArc(id) { if(confirm("¿Borrar registro de archivo?")) await fetch(`/api/archivos?id=${id}`, {method:'DELETE'}); render(); }
+        
         async function addPersonal() {
             const d = {legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value};
             await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)}); render();
