@@ -5,8 +5,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Base de Datos - Ordo Klar v56
-DB_PATH = os.path.abspath("ordoklar_v56_master.db")
+# Base de Datos - Ordo Klar v57 Final
+DB_PATH = os.path.abspath("ordoklar_v57_final.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -19,6 +19,7 @@ def init_db():
     c.execute('CREATE TABLE IF NOT EXISTS personal (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, apellido TEXT, legajo TEXT UNIQUE)')
     c.execute('CREATE TABLE IF NOT EXISTS puestos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, horario TEXT, dotacion INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS novedades (id INTEGER PRIMARY KEY AUTOINCREMENT, personal_id INTEGER, fecha TEXT, estado TEXT, UNIQUE(personal_id, fecha))')
+    c.execute('CREATE TABLE IF NOT EXISTS archivos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, fecha TEXT)')
     conn.commit()
     conn.close()
 
@@ -68,13 +69,27 @@ def handle_novedades():
     conn.close()
     return jsonify(res)
 
+@app.route('/api/archivos', methods=['GET', 'POST', 'DELETE'])
+def handle_archivos():
+    conn = get_db_connection()
+    if request.method == 'POST':
+        d = request.json
+        conn.execute("INSERT INTO archivos (nombre, fecha) VALUES (?, ?)", (d['nombre'], d['fecha']))
+        conn.commit()
+    elif request.method == 'DELETE':
+        conn.execute("DELETE FROM archivos WHERE id=?", (request.args.get('id'),))
+        conn.commit()
+    res = [dict(row) for row in conn.execute("SELECT * FROM archivos ORDER BY id DESC").fetchall()]
+    conn.close()
+    return jsonify(res)
+
 # --- INTERFAZ ---
 HTML_UI = '''
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR v56</title>
+    <title>ORDO KLAR v57 | PREMIUM</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; --text: #eee; }
@@ -92,52 +107,70 @@ HTML_UI = '''
         .box { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
         .btn { background: var(--gold); color: #000; border: none; padding: 10px 18px; font-weight: bold; cursor: pointer; border-radius: 4px; }
         
-        /* TABLA PLANILLA */
-        .table-wrap { overflow-x: auto; border: 1px solid #333; margin-top: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        th, td { border: 1px solid #222; text-align: center; padding: 6px 3px; min-width: 28px; }
+        /* PLANILLA COLORES */
+        .table-wrap { overflow-x: auto; border: 1px solid #333; }
+        table { width: 100%; border-collapse: collapse; font-size: 10px; color: #fff; background: #000; }
+        th, td { border: 1px solid #333; text-align: center; padding: 6px 2px; min-width: 30px; }
         .col-name { text-align: left; min-width: 200px; padding-left: 10px; color: var(--gold); font-weight: bold; }
         
-        /* ESTADOS */
-        .st-12 { background: #1b4332; color: #fff; } .st-ART { background: #5a1818; } .st-VAC { background: #004e89; } 
+        .st-12 { background: #1b4332 !important; } /* Verde */
+        .st-F { background: #ff8c00 !important; color: #000; font-weight: bold; } /* Naranja */
+        .st-ART { background: #6a0dad !important; } /* Violeta */
+        .st-VAC { background: #0000ff !important; } /* Azul */
+        .st-FE { background: #ff0000 !important; } /* Rojo */
 
         /* PUESTOS */
         .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
         .card-pue { background: #050505; border: 1px solid var(--border); padding: 15px; border-radius: 5px; border-top: 4px solid var(--gold); }
         .slot { background: #111; padding: 6px; margin-top: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222; }
         .slot select { background: #000; color: #fff; border: 1px solid #444; font-size: 11px; width: 70%; }
-        .slot-fixed { font-weight: bold; color: #fff; display: none; }
+        .slot-fixed { font-weight: bold; color: #fff; display: none; font-size: 12px; }
         
-        .is-confirmed { border-top-color: #1b4332; }
+        .is-confirmed { border-top-color: #1b4332; background: #020804; }
         .is-confirmed select, .is-confirmed .btn-confirm { display: none; }
         .is-confirmed .slot-fixed { display: block; }
         .btn-confirm { width: 100%; margin-top: 10px; background: #1b4332; color: #fff; border: none; padding: 8px; cursor: pointer; font-weight: bold; }
 
-        @media print { .no-print { display: none !important; } table { font-size: 9px; } }
+        #print-header { display: none; text-align: center; color: white; background: black; padding: 20px; border-bottom: 2px solid var(--gold); }
+
+        @media print { 
+            .no-print { display: none !important; } 
+            #print-header { display: block !important; }
+            body { background: white; }
+            .container { padding: 0; }
+            table { color: black; border: 1px solid black; }
+            th, td { border: 1px solid black; }
+            .st-12 { color: white; -webkit-print-color-adjust: exact; }
+        }
     </style>
 </head>
 <body>
 
-    <div class="header"><h1>ORDO <span style="color:var(--gold)">KLAR</span></h1></div>
+    <div id="print-header">
+        <h1 id="print-title">ORDO KLAR - INFORME</h1>
+    </div>
+
+    <div class="header no-print"><h1>ORDO <span style="color:var(--gold)">KLAR</span></h1></div>
 
     <nav class="no-print">
         <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
         <button id="n-pue" onclick="tab('pue')">Puestos</button>
         <button id="n-per" onclick="tab('per')">Personal</button>
         <button id="n-inf" onclick="tab('inf')">Informes</button>
+        <button id="n-arc" onclick="tab('arc')">Archivos</button>
     </nav>
 
     <div class="container">
         
-        <!-- PLANILLA MENSUAL -->
+        <!-- PLANILLA -->
         <div id="s-pla" class="section active-section">
             <div class="box no-print" style="display:flex; gap:15px">
                 <select id="m-sel" onchange="render()"></select>
                 <select id="a-sel" onchange="render()"></select>
-                <button class="btn" onclick="window.print()">🖨️ Imprimir Planilla</button>
+                <button class="btn" onclick="printPlanilla()">🖨️ Imprimir Planilla</button>
             </div>
             <div class="table-wrap">
-                <table>
+                <table id="full-planilla">
                     <thead id="h-pla"></thead>
                     <tbody id="b-pla"></tbody>
                     <tfoot id="f-pla"></tfoot>
@@ -147,13 +180,12 @@ HTML_UI = '''
 
         <!-- PUESTOS -->
         <div id="s-pue" class="section">
-            <div class="box no-print">
-                <div style="display:flex; gap:10px; flex-wrap:wrap">
-                    <input type="text" id="p-nom" placeholder="Objetivo">
-                    <input type="text" id="p-hor" placeholder="Horario">
-                    <input type="number" id="p-dot" placeholder="Dotación">
-                    <button class="btn" onclick="addPuesto()">+ Crear Puesto</button>
-                </div>
+            <div class="box no-print" style="display:flex; gap:10px">
+                <input type="text" id="p-nom" placeholder="Objetivo">
+                <input type="text" id="p-hor" placeholder="Horario">
+                <input type="number" id="p-dot" placeholder="Dotación">
+                <button class="btn" onclick="addPuesto()">Crear Puesto</button>
+                <button class="btn" style="background:#fff" onclick="printPue()">🖨️ Imprimir Guardias</button>
             </div>
             <div id="grid-pue" class="grid-pue"></div>
         </div>
@@ -161,12 +193,10 @@ HTML_UI = '''
         <!-- PERSONAL -->
         <div id="s-per" class="section">
             <div class="box">
-                <div style="display:flex; gap:10px">
-                    <input type="text" id="per-l" placeholder="Legajo">
-                    <input type="text" id="per-a" placeholder="Apellido">
-                    <input type="text" id="per-n" placeholder="Nombre">
-                    <button class="btn" onclick="addPersonal()">Cargar</button>
-                </div>
+                <input type="text" id="per-l" placeholder="Legajo">
+                <input type="text" id="per-a" placeholder="Apellido">
+                <input type="text" id="per-n" placeholder="Nombre">
+                <button class="btn" onclick="addPersonal()">Cargar Agente</button>
             </div>
             <div class="box">
                 <table style="width:100%; text-align:left">
@@ -176,23 +206,14 @@ HTML_UI = '''
             </div>
         </div>
 
-        <!-- INFORMES -->
-        <div id="s-inf" class="section">
-            <div class="box" style="text-align:center">
-                <h2>CENTRO DE INFORMES</h2>
-                <button class="btn" onclick="printNomina()">DESCARGAR NÓMINA PERSONAL (PDF)</button>
+        <!-- ARCHIVOS (HISTORIAL) -->
+        <div id="s-arc" class="section">
+            <div class="box">
+                <h3>HISTORIAL DE INFORMES ELABORADOS</h3>
+                <div id="historial-list"></div>
             </div>
         </div>
 
-    </div>
-
-    <!-- AREA NOMINA OCULTA -->
-    <div id="area-nomina-print" style="display:none; background:white; color:black; padding:40px">
-        <h1 id="tit-nomina" style="text-align:center"></h1>
-        <table style="width:100%; border:1px solid #000; margin-top:20px">
-            <thead><tr style="background:#ddd"><th>NOMBRE</th><th>APELLIDO</th><th>LEGAJO</th></tr></thead>
-            <tbody id="body-nomina"></tbody>
-        </table>
     </div>
 
     <script>
@@ -207,62 +228,71 @@ HTML_UI = '''
         }
 
         async function render() {
-            const [per, pue, nov] = await Promise.all([
+            const [per, pue, nov, arc] = await Promise.all([
                 fetch('/api/personal').then(r => r.json()),
                 fetch('/api/puestos').then(r => r.json()),
-                fetch('/api/novedades').then(r => r.json())
+                fetch('/api/novedades').then(r => r.json()),
+                fetch('/api/archivos').then(r => r.json())
             ]);
 
             const m = parseInt(document.getElementById('m-sel').value);
             const a = parseInt(document.getElementById('a-sel').value);
             const dias = new Date(a, m, 0).getDate();
 
-            // 1. PLANILLA
-            let h = `<tr><th class="col-name">AGENTE</th>`;
+            // RENDER PLANILLA
+            let h = `<tr><th class="col-name">PERSONAL</th>`;
             for(let i=1; i<=dias; i++) h += `<th>${i}</th>`;
             h += `<th style="background:var(--gold); color:black">HS</th></tr>`;
             document.getElementById('h-pla').innerHTML = h;
 
-            let b = ""; let sumHs = new Array(dias).fill(0);
+            let b = ""; let sumHs = new Array(dias).fill(0); let cntPer = new Array(dias).fill(0);
             per.forEach(p => {
                 let rowHs = 0;
                 let r = `<td class="col-name">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
                 for(let i=1; i<=dias; i++){
                     const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const d = nov.find(x => x.personal_id == p.id && x.fecha == f) || {estado:'F'};
-                    if(d.estado == '12') { rowHs += 12; sumHs[i-1] += 12; }
+                    if(d.estado == '12') { rowHs += 12; sumHs[i-1] += 12; cntPer[i-1]++; }
                     r += `<td class="st-${d.estado}" onclick="cycleSt(this, ${p.id}, '${f}')">${d.estado}</td>`;
                 }
                 r += `<td style="font-weight:bold; color:var(--gold)">${rowHs}</td>`;
                 b += `<tr>${r}</tr>`;
             });
             document.getElementById('b-pla').innerHTML = b;
-            document.getElementById('f-pla').innerHTML = `<tr><td class="col-name">TOTAL HORAS</td>${sumHs.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>`;
+            document.getElementById('f-pla').innerHTML = `
+                <tr><td class="col-name">CANT. PERSONAL ACTIVO</td>${cntPer.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>
+                <tr style="background:#111"><td class="col-name">TOTAL HORAS DÍA</td>${sumHs.map(v=>`<td>${v}</td>`).join('')}<td>-</td></tr>`;
 
-            // 2. PUESTOS
-            const opts = `<option value="">-- Asignar --</option>` + per.map(p => `<option>${p.apellido.toUpperCase()}, ${p.nombre}</option>`).join('');
+            // RENDER PUESTOS
+            const opts = `<option value="">-- Seleccionar --</option>` + per.map(p => `<option>${p.apellido.toUpperCase()}, ${p.nombre}</option>`).join('');
             document.getElementById('grid-pue').innerHTML = pue.map(x => {
                 let s = "";
                 for(let i=1; i<=x.dotacion; i++) s += `<div class="slot"><select>${opts}</select><span class="slot-fixed"></span></div>`;
                 return `
                 <div class="card-pue" id="pue-${x.id}">
                     <div style="float:right" class="no-print"><button onclick="delPue(${x.id})" style="background:none; border:none; color:red; cursor:pointer">✖</button></div>
-                    <h3>${x.nombre}</h3><small>${x.horario}</small>
+                    <h3 style="margin:0">${x.nombre}</h3><small>${x.horario}</small>
                     ${s}
                     <button class="btn-confirm no-print" onclick="fixPue(${x.id})">CONFIRMAR PUESTO</button>
-                    <button class="btn no-print" style="display:none; width:100%; margin-top:5px; font-size:10px" id="ed-${x.id}" onclick="unfixPue(${x.id})">MODIFICAR</button>
+                    <button class="btn no-print" style="display:none; width:100%; margin-top:5px; font-size:10px" id="ed-${x.id}" onclick="unfixPue(${x.id})">RE-EDITAR</button>
                 </div>`;
             }).join('');
 
-            // 3. PERSONAL
+            // RENDER ARCHIVOS
+            document.getElementById('historial-list').innerHTML = arc.map(x => `
+                <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #333">
+                    <span>📄 ${x.nombre} <small style="color:#777">(${x.fecha})</small></span>
+                    <button class="btn" style="background:red; color:white; padding:5px" onclick="delArc(${x.id})">ELIMINAR</button>
+                </div>`).join('');
+
+            // RENDER LISTA PERSONAL
             document.getElementById('list-per').innerHTML = per.map(p => `
                 <tr><td>${p.legajo}</td><td>${p.apellido}</td><td>${p.nombre}</td>
-                <td><button onclick="delPer(${p.id})" style="color:red; background:none; border:none; cursor:pointer">Eliminar</button></td></tr>
-            `).join('');
+                <td><button onclick="delPer(${p.id})" style="color:red; background:none; border:none; cursor:pointer">Baja</button></td></tr>`).join('');
         }
 
         async function cycleSt(td, pid, fecha) {
-            const sts = ["F", "12", "ART", "VAC"];
+            const sts = ["F", "12", "ART", "VAC", "FE"];
             let nxt = sts[(sts.indexOf(td.innerText) + 1) % sts.length];
             await fetch('/api/novedades', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:fecha, estado:nxt})});
             render();
@@ -285,14 +315,25 @@ HTML_UI = '''
             document.getElementById(`ed-${id}`).style.display = "none";
         }
 
-        async function printNomina() {
-            const per = await fetch('/api/personal').then(r => r.json());
-            const hoy = new Date().toLocaleDateString('es-AR');
-            document.getElementById('tit-nomina').innerText = `NOMINA DE PERSONAL A LA FECHA ${hoy}`;
-            document.getElementById('body-nomina').innerHTML = per.map(p => `<tr><td>${p.nombre}</td><td>${p.apellido}</td><td>${p.legajo}</td></tr>`).join('');
-            const area = document.getElementById('area-nomina-print');
-            area.style.display = 'block';
-            html2pdf().from(area).set({ margin: 10, filename: `Nomina_${hoy}.pdf` }).save().then(() => area.style.display='none');
+        async function printPlanilla() {
+            const m = mesesNombres[document.getElementById('m-sel').value - 1];
+            const a = document.getElementById('a-sel').value;
+            const tit = `PLANILLA MENSUAL ${m} ${a}`;
+            document.getElementById('print-title').innerText = tit;
+            await logArch(tit);
+            window.print();
+        }
+
+        async function printPue() {
+            const hoy = new Date().toLocaleDateString();
+            const tit = `GUARDIAS - FECHA: ${hoy}`;
+            document.getElementById('print-title').innerText = tit;
+            await logArch(tit);
+            window.print();
+        }
+
+        async function logArch(nom) {
+            await fetch('/api/archivos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre: nom, fecha: new Date().toLocaleString()})});
         }
 
         async function addPuesto() {
@@ -307,15 +348,20 @@ HTML_UI = '''
             render();
         }
 
-        async function delPer(id) { if(confirm("¿Eliminar?")) await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
-        async function delPue(id) { if(confirm("¿Eliminar?")) await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
+        async function delArc(id) { if(confirm("¿Eliminar del historial?")) await fetch(`/api/archivos?id=${id}`, {method:'DELETE'}); render(); }
+        async function delPer(id) { if(confirm("¿Baja de personal?")) await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); }
+        async function delPue(id) { if(confirm("¿Eliminar puesto?")) await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); }
 
         window.onload = () => {
             const m = document.getElementById('m-sel'); const a = document.getElementById('a-sel');
             mesesNombres.forEach((n, i) => m.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`);
-            for(let i=2025; i<=2026; i++) a.innerHTML += `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
+            for(let i=2025; i<=2027; i++) a.innerHTML += `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
             render();
         };
     </script>
 </body>
 </html>
+'''
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
