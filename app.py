@@ -3,11 +3,10 @@ import sqlite3
 from flask import Flask, render_template_string, request, jsonify, session, redirect, url_for
 
 app = Flask(__name__)
-# Clave para cifrar las cookies de sesión
-app.secret_key = 'ordo_klar_v67_secure_key'
+app.secret_key = 'ordo_klar_v68_verified_fix'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "ordoklar_v67.db")
+DB_PATH = os.path.join(BASE_DIR, "ordoklar_v68.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30)
@@ -32,16 +31,10 @@ init_db()
 def login():
     error = None
     if request.method == 'POST':
-        # Credenciales de acceso
-        user = request.form.get('username')
-        pssw = request.form.get('password')
-        
-        if user == "admin" and pssw == "admin123":
+        if request.form.get('username') == "admin" and request.form.get('password') == "admin123":
             session['logged_in'] = True
             return redirect(url_for('index'))
-        else:
-            error = "Credenciales incorrectas"
-            
+        error = "Credenciales incorrectas"
     return render_template_string(HTML_LOGIN, error=error)
 
 @app.route('/logout')
@@ -51,15 +44,30 @@ def logout():
 
 @app.route('/')
 def index():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
+    if not session.get('logged_in'): return redirect(url_for('login'))
     return render_template_string(HTML_UI)
 
-# --- API (Protegidas por sesión) ---
+# --- API ---
+
+@app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
+def handle_personal():
+    if not session.get('logged_in'): return jsonify([]), 401
+    with get_db_connection() as conn:
+        if request.method == 'POST':
+            d = request.json
+            conn.execute("INSERT INTO personal (nombre, apellido, legajo) VALUES (?, ?, ?)", 
+                         (d['nombre'], d['apellido'], d['legajo']))
+            conn.commit()
+        elif request.method == 'DELETE':
+            conn.execute("DELETE FROM personal WHERE id=?", (request.args.get('id'),))
+            conn.execute("DELETE FROM asignaciones WHERE personal_id=?", (request.args.get('id'),))
+            conn.commit()
+        res = [dict(row) for row in conn.execute("SELECT * FROM personal ORDER BY apellido ASC").fetchall()]
+    return jsonify(res)
 
 @app.route('/api/puestos', methods=['GET', 'POST', 'DELETE'])
 def handle_puestos():
-    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
+    if not session.get('logged_in'): return jsonify([]), 401
     with get_db_connection() as conn:
         if request.method == 'POST':
             d = request.json
@@ -83,7 +91,7 @@ def handle_puestos():
 
 @app.route('/api/asignar', methods=['POST'])
 def asignar_personal():
-    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
+    if not session.get('logged_in'): return jsonify({"status": "error"}), 401
     d = request.json
     with get_db_connection() as conn:
         if not d.get('personal_id'):
@@ -94,23 +102,9 @@ def asignar_personal():
         conn.commit()
     return jsonify({"status": "success"})
 
-@app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
-def handle_personal():
-    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
-    with get_db_connection() as conn:
-        if request.method == 'POST':
-            d = request.json
-            conn.execute("INSERT INTO personal (nombre, apellido, legajo) VALUES (?, ?, ?)", (d['nombre'], d['apellido'], d['legajo']))
-            conn.commit()
-        elif request.method == 'DELETE':
-            conn.execute("DELETE FROM personal WHERE id=?", (request.args.get('id'),))
-            conn.commit()
-        res = [dict(row) for row in conn.execute("SELECT * FROM personal ORDER BY apellido ASC").fetchall()]
-    return jsonify(res)
-
 @app.route('/api/novedades', methods=['GET', 'POST'])
 def handle_novedades():
-    if not session.get('logged_in'): return jsonify({"error": "Unauthorized"}), 401
+    if not session.get('logged_in'): return jsonify([]), 401
     with get_db_connection() as conn:
         if request.method == 'POST':
             d = request.json
@@ -123,38 +117,25 @@ def handle_novedades():
 # --- UI TEMPLATES ---
 
 HTML_LOGIN = '''
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ORDO KLAR - Acceso</title>
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Login</title>
 <style>
-    body { background: #000; color: #D4AF37; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Segoe UI', sans-serif; margin: 0; }
-    .login-box { background: #111; border: 1px solid #D4AF37; padding: 40px; border-radius: 12px; text-align: center; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    h1 { letter-spacing: 4px; margin-bottom: 30px; font-weight: 300; }
-    input { display: block; width: 100%; margin: 15px 0; padding: 12px; background: #000; color: #fff; border: 1px solid #333; border-radius: 5px; box-sizing: border-box; }
-    button { width: 100%; padding: 12px; background: #D4AF37; color: #000; font-weight: bold; border: none; cursor: pointer; border-radius: 5px; transition: 0.3s; }
-    button:hover { background: #fff; }
-    .error { color: #ff4444; font-size: 14px; margin-bottom: 10px; }
-</style></head>
-<body>
-    <div class="login-box">
-        <h1>ORDO <span style="font-weight:bold">KLAR</span></h1>
-        {% if error %}<p class="error">{{ error }}</p>{% endif %}
-        <form method="POST">
-            <input name="username" placeholder="Usuario" required autocomplete="off">
-            <input type="password" name="password" placeholder="Contraseña" required>
-            <button type="submit">ENTRAR</button>
-        </form>
-    </div>
-</body></html>
+    body { background: #000; color: #D4AF37; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; margin: 0; }
+    .box { background: #111; border: 1px solid #D4AF37; padding: 40px; border-radius: 10px; text-align: center; width: 300px; }
+    input { display: block; width: 100%; margin: 15px 0; padding: 10px; background: #000; color: #fff; border: 1px solid #333; box-sizing: border-box; }
+    button { width: 100%; padding: 10px; background: #D4AF37; color: #000; font-weight: bold; border: none; cursor: pointer; }
+    .err { color: red; font-size: 12px; }
+</style></head><body><div class="box"><h2>ORDO KLAR</h2>{% if error %}<p class="err">{{error}}</p>{% endif %}<form method="POST"><input name="username" placeholder="Usuario" required><input type="password" name="password" placeholder="Clave" required><button type="submit">ENTRAR</button></form></div></body></html>
 '''
 
 HTML_UI = '''
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>ORDO KLAR v67</title>
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>ORDO KLAR v68</title>
 <style>
     :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; --text: #eee; }
     body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; }
     .header { text-align: center; padding: 15px; border-bottom: 2px solid var(--gold); position: relative; }
     .logout { position: absolute; right: 20px; top: 25px; color: #777; text-decoration: none; font-size: 12px; }
     nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
-    nav button { background: none; border: none; color: #777; padding: 15px 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+    nav button { background: none; border: none; color: #777; padding: 15px 20px; cursor: pointer; font-weight: bold; }
     nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
     .container { padding: 20px; }
     .section { display: none; }
@@ -168,14 +149,14 @@ HTML_UI = '''
     .st-12 { background: #1b4332; text-align:center; } .st-F { background: #444; text-align:center; }
     .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
     .card-pue { background: #080808; border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 5px; }
-    .slot { margin-top: 10px; background: #111; padding: 5px; border-radius: 4px; }
-    .slot select { width: 100%; background: none; color: #fff; border: none; }
-    .btn-del { color: #ff4444; background: none; border: none; cursor: pointer; }
+    .slot { margin-top: 5px; background: #111; padding: 5px; border-radius: 4px; border: 1px solid #222; }
+    .slot select { width: 100%; background: none; color: #fff; border: none; font-size: 12px; }
+    .btn-del { color: #ff4444; background: none; border: none; cursor: pointer; font-size: 11px; }
 </style>
 </head><body>
     <div class="header">
         <h1>ORDO <span style="color:var(--gold)">KLAR</span></h1>
-        <a href="/logout" class="logout">CERRAR SESIÓN</a>
+        <a href="/logout" class="logout">SALIR</a>
     </div>
     <nav>
         <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
@@ -183,17 +164,16 @@ HTML_UI = '''
         <button id="n-per" onclick="tab('per')">Personal</button>
     </nav>
     <div class="container">
-        <!-- SECCIÓN PLANILLA -->
+        <!-- PLANILLA -->
         <div id="s-pla" class="section active-section">
             <div class="box">
-                <select id="m-sel" onchange="render()" style="padding:8px; background:#000; color:#fff;"></select>
-                <select id="a-sel" onchange="render()" style="padding:8px; background:#000; color:#fff;"></select>
+                <select id="m-sel" onchange="render()"></select>
+                <select id="a-sel" onchange="render()"></select>
                 <button class="btn" onclick="window.print()">Imprimir</button>
             </div>
-            <div style="overflow-x:auto"><table><thead id="h-pla"></thead><tbody id="b-pla"></tbody><tfoot id="f-pla"></tfoot></table></div>
+            <div style="overflow-x:auto"><table><thead id="h-pla"></thead><tbody id="b-pla"></tbody></table></div>
         </div>
-
-        <!-- SECCIÓN PUESTOS -->
+        <!-- PUESTOS -->
         <div id="s-pue" class="section">
             <div class="box">
                 <input type="text" id="p-nom" placeholder="Objetivo">
@@ -203,18 +183,17 @@ HTML_UI = '''
             </div>
             <div id="grid-pue" class="grid-pue"></div>
         </div>
-
-        <!-- SECCIÓN PERSONAL -->
+        <!-- PERSONAL -->
         <div id="s-per" class="section">
             <div class="box">
-                <h3>Cargar Agente</h3>
+                <h3>Cargar Nuevo Agente</h3>
                 <input id="per-l" placeholder="Legajo">
                 <input id="per-a" placeholder="Apellido">
                 <input id="per-n" placeholder="Nombre">
-                <button class="btn" onclick="addPersonal()">Cargar</button>
+                <button class="btn" onclick="addPersonal()">GUARDAR PERSONAL</button>
             </div>
             <div class="box">
-                <table>
+                <table id="table-per-list">
                     <thead><tr><th>Legajo</th><th>Apellido y Nombre</th><th>Acción</th></tr></thead>
                     <tbody id="list-per"></tbody>
                 </table>
@@ -241,13 +220,14 @@ HTML_UI = '''
             fetch('/api/novedades').then(r=>r.json())
         ]);
 
+        // Actualizar Lista de Personal si el elemento existe
         const listPer = document.getElementById('list-per');
         if(listPer) {
             listPer.innerHTML = per.map(p => `
                 <tr>
                     <td style="color:var(--gold)">${p.legajo}</td>
                     <td>${p.apellido.toUpperCase()}, ${p.nombre}</td>
-                    <td><button class="btn-del" onclick="delPer(${p.id})">BAJA</button></td>
+                    <td><button class="btn-del" onclick="delPer(${p.id})">ELIMINAR</button></td>
                 </tr>`).join('');
         }
 
@@ -255,24 +235,31 @@ HTML_UI = '''
             const m = parseInt(document.getElementById('m-sel').value);
             const a = parseInt(document.getElementById('a-sel').value);
             const dias = new Date(a, m, 0).getDate();
+            
+            // Si no hay personal, mostrar aviso
+            if(per.length === 0){
+                document.getElementById('h-pla').innerHTML = "<tr><th>Cargue personal en la pestaña correspondiente</th></tr>";
+                document.getElementById('b-pla').innerHTML = "";
+                return;
+            }
+
             let h = `<tr><th>PERSONAL</th>`;
-            for(let i=1;i<=dias;i++) h += `<th>${i}</th>`;
+            for(let i=1;i<=dias;i++) h += `<th style="text-align:center">${i}</th>`;
             h += `<th>HS</th></tr>`;
             document.getElementById('h-pla').innerHTML = h;
             
-            let b = ""; let totales = new Array(dias).fill(0);
+            let b = "";
             per.forEach(p=>{
                 let hs = 0; let r = `<td style="color:var(--gold)">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
                 for(let i=1;i<=dias;i++){
                     const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const n = nov.find(x=>x.personal_id==p.id && x.fecha==f) || {estado:'F'};
-                    if(n.estado=='12') { hs += 12; totales[i-1]++; }
+                    if(n.estado=='12') hs += 12;
                     r += `<td class="st-${n.estado}" onclick="cycleSt(this, ${p.id}, '${f}')">${n.estado}</td>`;
                 }
-                b += `<tr>${r}<td>${hs}</td></tr>`;
+                b += `<tr>${r}<td style="font-weight:bold">${hs}</td></tr>`;
             });
             document.getElementById('b-pla').innerHTML = b;
-            document.getElementById('f-pla').innerHTML = `<tr><td>TOTAL</td>${totales.map(v=>`<td style="text-align:center">${v}</td>`).join('')}<td>-</td></tr>`;
         }
 
         if(currentTab === 'pue'){
@@ -286,16 +273,26 @@ HTML_UI = '''
                     });
                     slots += `<div class="slot"><select onchange="saveAsig(${p.id}, ${i}, this.value)">${opts}</select></div>`;
                 }
-                return `<div class="card-pue"><h3>${p.nombre}</h3><p><small>${p.horario}</small></p>${slots}<br><button onclick="delPue(${p.id})" class="btn-del">ELIMINAR</button></div>`;
+                return `<div class="card-pue"><h3>${p.nombre}</h3><p><small>${p.horario}</small></p>${slots}<br><button onclick="delPue(${p.id})" class="btn-del">BORRAR OBJETIVO</button></div>`;
             }).join('');
         }
     }
 
     async function addPersonal(){
-        const d = { legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value };
-        if(!d.legajo || !d.apellido) return alert("Legajo y Apellido obligatorios");
-        await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
-        document.getElementById('per-l').value=""; document.getElementById('per-a').value=""; document.getElementById('per-n').value="";
+        const l = document.getElementById('per-l').value;
+        const a = document.getElementById('per-a').value;
+        const n = document.getElementById('per-n').value;
+        if(!l || !a) return alert("Complete los datos");
+        
+        await fetch('/api/personal', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({ legajo: l, apellido: a, nombre: n })
+        });
+        
+        document.getElementById('per-l').value=""; 
+        document.getElementById('per-a').value=""; 
+        document.getElementById('per-n').value="";
         render();
     }
 
@@ -317,8 +314,8 @@ HTML_UI = '''
         render();
     }
 
-    async function delPue(id){ if(confirm('¿Borrar puesto?')) { await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); } }
-    async function delPer(id){ if(confirm('¿Baja de personal?')) { await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); } }
+    async function delPue(id){ if(confirm('¿Borrar objetivo?')) { await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); } }
+    async function delPer(id){ if(confirm('¿Dar de baja?')) { await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); } }
 
     window.onload = () => {
         const ms = document.getElementById('m-sel'); const as = document.getElementById('a-sel');
