@@ -4,8 +4,8 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Base de Datos con Ruta Absoluta para persistencia permanente
-DB_PATH = os.path.abspath("ordoklar_v44_final.db")
+# Persistencia Total en Ruta Absoluta
+DB_PATH = os.path.abspath("ordoklar_v45_master.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
@@ -18,7 +18,6 @@ def init_db():
     c.execute('CREATE TABLE IF NOT EXISTS personal (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, apellido TEXT, legajo TEXT UNIQUE)')
     c.execute('CREATE TABLE IF NOT EXISTS puestos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, horario TEXT, dotacion INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS novedades (id INTEGER PRIMARY KEY AUTOINCREMENT, personal_id INTEGER, fecha TEXT, estado TEXT, UNIQUE(personal_id, fecha))')
-    c.execute('CREATE TABLE IF NOT EXISTS historial_informes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, fecha TEXT)')
     conn.commit()
     conn.close()
 
@@ -28,7 +27,7 @@ init_db()
 def index():
     return render_template_string(HTML_UI)
 
-# --- API PERSONAL ---
+# --- APIs ---
 @app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
 def handle_personal():
     conn = get_db_connection()
@@ -43,13 +42,16 @@ def handle_personal():
     conn.close()
     return jsonify(res)
 
-# --- API PUESTOS (CORREGIDA) ---
-@app.route('/api/puestos', methods=['GET', 'POST', 'DELETE'])
+@app.route('/api/puestos', methods=['GET', 'POST', 'DELETE', 'PUT'])
 def handle_puestos():
     conn = get_db_connection()
     if request.method == 'POST':
         d = request.json
         conn.execute("INSERT INTO puestos (nombre, horario, dotacion) VALUES (?, ?, ?)", (d['nombre'], d['horario'], d['dotacion']))
+        conn.commit()
+    elif request.method == 'PUT':
+        d = request.json
+        conn.execute("UPDATE puestos SET nombre=?, horario=?, dotacion=? WHERE id=?", (d['nombre'], d['horario'], d['dotacion'], d['id']))
         conn.commit()
     elif request.method == 'DELETE':
         conn.execute("DELETE FROM puestos WHERE id=?", (request.args.get('id'),))
@@ -58,7 +60,6 @@ def handle_puestos():
     conn.close()
     return jsonify(res)
 
-# --- API PLANILLA (NOVEDADES) ---
 @app.route('/api/novedades', methods=['GET', 'POST'])
 def handle_novedades():
     conn = get_db_connection()
@@ -75,7 +76,7 @@ HTML_UI = '''
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ORDO KLAR v44 | Gestión Técnica</title>
+    <title>ORDO KLAR v45 | Gestión de Puestos</title>
     <style>
         :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; }
         body { background: var(--bg); color: #FFF; font-family: 'Segoe UI', sans-serif; margin: 0; }
@@ -85,35 +86,40 @@ HTML_UI = '''
         nav button { background: none; border: none; color: #666; padding: 15px 20px; cursor: pointer; font-weight: bold; font-size: 13px; text-transform: uppercase; }
         nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
 
-        .container { padding: 15px; width: 100%; box-sizing: border-box; }
+        .container { padding: 15px; box-sizing: border-box; }
         .section { display: none; }
         .active-section { display: block; }
 
-        /* PLANILLA SIN SCROLL */
-        .table-wrapper { width: 100%; overflow: hidden; border: 1px solid var(--border); }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
-        th, td { border: 1px solid #222; text-align: center; padding: 4px 0; overflow: hidden; }
-        .col-name { text-align: left; width: 140px; padding-left: 5px; color: var(--gold); font-weight: bold; }
-        .st-12 { background: #1b4332; color: white; }
-        .st-F { color: #444; }
-
-        /* PUESTOS CARDS */
-        .grid-puestos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-top: 20px; }
-        .card-puesto { background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 5px; position: relative; }
-        .card-puesto h3 { margin: 0 0 10px 0; color: var(--gold); }
-        .card-puesto p { margin: 5px 0; font-size: 13px; color: #ccc; }
-        .btn-del { background: #5a1818; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 10px; margin-top: 10px; }
-
         .box { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px; }
         .flex-row { display: flex; flex-wrap: wrap; gap: 10px; }
-        input { background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; flex: 1; }
+        input, select { background: #000; border: 1px solid #444; color: #fff; padding: 10px; border-radius: 4px; flex: 1; }
         .btn { background: var(--gold); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        
+        /* Puestos Visuals */
+        .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }
+        .card-pue { background: #080808; border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 6px; }
+        .card-pue h3 { margin: 0; color: var(--gold); text-transform: uppercase; font-size: 18px; }
+        .card-pue p { color: #888; font-size: 13px; margin: 5px 0 15px 0; }
+        
+        .assign-slot { background: #151515; padding: 8px; margin-bottom: 5px; border-radius: 4px; display: flex; align-items: center; gap: 10px; }
+        .assign-slot span { font-size: 11px; color: var(--gold); font-weight: bold; width: 60px; }
+
+        .btn-edit { background: #333; color: white; border: none; padding: 6px; cursor: pointer; font-size: 11px; margin-right: 5px; border-radius: 3px; }
+        .btn-del { background: #5a1818; color: white; border: none; padding: 6px; cursor: pointer; font-size: 11px; border-radius: 3px; }
+
+        /* Planilla Compacta */
+        .table-wrap { width: 100%; border: 1px solid var(--border); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
+        th, td { border: 1px solid #222; text-align: center; padding: 5px 0; }
+        .col-name { text-align: left; width: 150px; padding-left: 8px; color: var(--gold); font-weight: bold; }
+        .st-12 { background: #1b4332; } .st-F { color: #444; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <h1 style="margin:0; letter-spacing: 3px;">ORDO <span style="color:var(--gold)">KLAR</span></h1>
+        <p style="color:#555; font-size:10px; margin:0;">SISTEMA DE GESTIÓN TÉCNICA v45</p>
     </div>
 
     <nav>
@@ -127,10 +133,10 @@ HTML_UI = '''
         <!-- PLANILLA -->
         <div id="s-pla" class="section active-section">
             <div class="box flex-row">
-                <select id="sel-m" onchange="render()"></select>
-                <select id="sel-a" onchange="render()"></select>
+                <select id="m-sel" onchange="render()"></select>
+                <select id="a-sel" onchange="render()"></select>
             </div>
-            <div class="table-wrapper">
+            <div class="table-wrap">
                 <table>
                     <thead id="h-pla"></thead>
                     <tbody id="b-pla"></tbody>
@@ -138,15 +144,19 @@ HTML_UI = '''
             </div>
         </div>
 
-        <!-- PUESTOS (CORREGIDO) -->
+        <!-- PUESTOS (EDICIÓN Y ASIGNACIÓN) -->
         <div id="s-pue" class="section">
-            <div class="box flex-row">
-                <input type="text" id="p-nom" placeholder="Nombre del Puesto/Objetivo">
-                <input type="text" id="p-hor" placeholder="Horario (Ej: 07-19)">
-                <input type="number" id="p-dot" placeholder="Dotación Requerida">
-                <button class="btn" onclick="addPuesto()">Crear Puesto</button>
+            <div class="box">
+                <h4 id="form-title" style="margin-top:0; color:var(--gold)">NUEVO OBJETIVO / PUESTO</h4>
+                <div class="flex-row">
+                    <input type="hidden" id="p-id">
+                    <input type="text" id="p-nom" placeholder="Nombre del Puesto">
+                    <input type="text" id="p-hor" placeholder="Horario (Ej: 07:00 a 19:00)">
+                    <input type="number" id="p-dot" placeholder="Cant. Personal Requerido">
+                    <button class="btn" id="p-btn" onclick="savePuesto()">Guardar Puesto</button>
+                </div>
             </div>
-            <div id="grid-pue" class="grid-puestos"></div>
+            <div id="grid-pue" class="grid-pue"></div>
         </div>
 
         <!-- PERSONAL -->
@@ -155,11 +165,11 @@ HTML_UI = '''
                 <input type="text" id="per-l" placeholder="Legajo">
                 <input type="text" id="per-a" placeholder="Apellido">
                 <input type="text" id="per-n" placeholder="Nombre">
-                <button class="btn" onclick="addPersonal()">Dar de Alta</button>
+                <button class="btn" onclick="addPersonal()">Alta Agente</button>
             </div>
-            <div class="table-wrapper">
+            <div class="table-wrap">
                 <table>
-                    <thead><tr><th class="col-name">Legajo</th><th>Nombre Completo</th><th>Acción</th></tr></thead>
+                    <thead><tr><th class="col-name">Legajo</th><th>Nombre</th><th>Acción</th></tr></thead>
                     <tbody id="list-per"></tbody>
                 </table>
             </div>
@@ -168,6 +178,8 @@ HTML_UI = '''
     </div>
 
     <script>
+        let globalPersonal = [];
+
         function tab(t) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active-section'));
             document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -177,12 +189,15 @@ HTML_UI = '''
         }
 
         async function render() {
-            const per = await fetch('/api/personal').then(r => r.json());
-            const nov = await fetch('/api/novedades').then(r => r.json());
-            const pue = await fetch('/api/puestos').then(r => r.json());
-
-            const m = parseInt(document.getElementById('sel-m').value);
-            const a = parseInt(document.getElementById('sel-a').value);
+            const [per, nov, pue] = await Promise.all([
+                fetch('/api/personal').then(r => r.json()),
+                fetch('/api/novedades').then(r => r.json()),
+                fetch('/api/puestos').then(r => r.json())
+            ]);
+            
+            globalPersonal = per;
+            const m = parseInt(document.getElementById('m-sel').value);
+            const a = parseInt(document.getElementById('a-sel').value);
             const dias = new Date(a, m, 0).getDate();
 
             // Render Planilla
@@ -203,20 +218,73 @@ HTML_UI = '''
             });
             document.getElementById('b-pla').innerHTML = b;
 
-            // Render Puestos (TARJETAS CORREGIDAS)
-            document.getElementById('grid-pue').innerHTML = pue.map(x => `
-                <div class="card-puesto">
+            // Render Puestos Cards
+            document.getElementById('grid-pue').innerHTML = pue.map(x => {
+                let slots = "";
+                for(let i=1; i<=x.dotacion; i++){
+                    slots += `
+                    <div class="assign-slot">
+                        <span>PUESTO ${i}</span>
+                        <select>
+                            <option>-- Asignar Agente --</option>
+                            ${per.map(p => `<option>${p.apellido}, ${p.nombre}</option>`).join('')}
+                        </select>
+                    </div>`;
+                }
+                return `
+                <div class="card-pue">
+                    <div style="float:right">
+                        <button class="btn-edit" onclick="editPue(${x.id}, '${x.nombre}', '${x.horario}', ${x.dotacion})">EDITAR</button>
+                        <button class="btn-del" onclick="delPue(${x.id})">X</button>
+                    </div>
                     <h3>${x.nombre}</h3>
-                    <p><strong>Horario:</strong> ${x.horario}</p>
-                    <p><strong>Dotación Requerida:</strong> ${x.dotacion} agentes</p>
-                    <button class="btn-del" onclick="delPuesto(${x.id})">ELIMINAR PUESTO</button>
-                </div>
-            `).join('');
+                    <p>${x.horario} | Dotación: ${x.dotacion}</p>
+                    <div class="slots-container">${slots}</div>
+                </div>`;
+            }).join('');
 
-            // Render Personal
+            // Listado Personal
             document.getElementById('list-per').innerHTML = per.map(p => `
-                <tr><td>${p.legajo}</td><td>${p.apellido}, ${p.nombre}</td><td><button class="btn-del" onclick="delPer(${p.id})">BORRAR</button></td></tr>
+                <tr><td>${p.legajo}</td><td>${p.apellido}, ${p.nombre}</td>
+                <td><button class="btn-del" onclick="delPer(${p.id})">BORRAR</button></td></tr>
             `).join('');
+        }
+
+        async function savePuesto() {
+            const id = document.getElementById('p-id').value;
+            const data = {
+                nombre: document.getElementById('p-nom').value,
+                horario: document.getElementById('p-hor').value,
+                dotacion: document.getElementById('p-dot').value
+            };
+
+            if(id) {
+                data.id = id;
+                await fetch('/api/puestos', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+            } else {
+                await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+            }
+            
+            resetForm();
+            render();
+        }
+
+        function editPue(id, nom, hor, dot) {
+            document.getElementById('p-id').value = id;
+            document.getElementById('p-nom').value = nom;
+            document.getElementById('p-hor').value = hor;
+            document.getElementById('p-dot').value = dot;
+            document.getElementById('form-title').innerText = "EDITAR PUESTO: " + nom;
+            document.getElementById('p-btn').innerText = "Actualizar Puesto";
+        }
+
+        function resetForm() {
+            document.getElementById('p-id').value = "";
+            document.getElementById('p-nom').value = "";
+            document.getElementById('p-hor').value = "";
+            document.getElementById('p-dot').value = "";
+            document.getElementById('form-title').innerText = "NUEVO OBJETIVO / PUESTO";
+            document.getElementById('p-btn').innerText = "Guardar Puesto";
         }
 
         async function cycle(td, pid, fecha) {
@@ -226,30 +294,16 @@ HTML_UI = '''
             render();
         }
 
-        async function addPuesto() {
-            const d = { nombre: document.getElementById('p-nom').value, horario: document.getElementById('p-hor').value, dotacion: document.getElementById('p-dot').value };
-            await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
-            render();
-        }
-
-        async function delPuesto(id) {
-            await fetch(`/api/puestos?id=${id}`, {method:'DELETE'});
-            render();
-        }
-
+        async function delPue(id) { if(confirm("¿Eliminar puesto?")) { await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); } }
         async function addPersonal() {
-            const d = { legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value };
+            const d = {legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value};
             await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
             render();
         }
-
-        async function delPer(id) {
-            await fetch(`/api/personal?id=${id}`, {method:'DELETE'});
-            render();
-        }
+        async function delPer(id) { if(confirm("¿Borrar agente?")) { await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); } }
 
         window.onload = () => {
-            const m = document.getElementById('sel-m'); const a = document.getElementById('sel-a');
+            const m = document.getElementById('m-sel'); const a = document.getElementById('a-sel');
             const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
             meses.forEach((n, i) => m.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${n}</option>`);
             for(let i=2025; i<=2026; i++) a.innerHTML += `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
