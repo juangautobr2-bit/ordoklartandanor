@@ -1,1 +1,36 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>ORDO KLAR</title>
+<style>
+    :root { --gold: #D4AF37; --bg: #000; --card: #121212; --border: #333; }
+    body { background: var(--bg); color: #eee; font-family: sans-serif; margin: 0; }
+    nav { display: flex; justify-content: center; background: #0a0a0a; border-bottom: 2px solid var(--gold); }
+    nav button { background: none; border: none; color: #777; padding: 20px; cursor: pointer; font-weight: bold; }
+    nav button.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
+    .container { padding: 20px; max-width: 1100px; margin: auto; }
+</style>
+</head><body>
+    <nav>
+        <button onclick="loadSection('puestos')" id="n-pue">GUARDIAS-PUESTOS</button>
+        <button onclick="loadSection('planilla')" id="n-pla">PLANILLA MENSUAL</button>
+        <button onclick="loadSection('personal')" id="n-per">PERSONAL</button>
+    </nav>
+    <div id="content-area" class="container"></div>
 
+<script>
+    async function loadSection(name) {
+        // Marcamos el botón activo
+        document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+        if(name === 'puestos') document.getElementById('n-pue').classList.add('active');
+        if(name === 'planilla') document.getElementById('n-pla').classList.add('active');
+        if(name === 'personal') document.getElementById('n-per').classList.add('active');
+
+        const res = await fetch(`/templates/${name}.html`);
+        const html = await res.text();
+        document.getElementById('content-area').innerHTML = html;
+        
+        // Ejecutamos el render inicial de cada sección si existe
+        if (window.initSection) window.initSection();
+    }
+    // Carga inicial
+    window.onload = () => loadSection('puestos');
+</script>
+</body></html>
