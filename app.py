@@ -3,10 +3,10 @@ import sqlite3
 from flask import Flask, render_template_string, request, jsonify, session, redirect, url_for
 
 app = Flask(__name__)
-app.secret_key = 'ordo_klar_v69_final'
+app.secret_key = 'ordo_klar_v70_final_verified'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "ordoklar_v69.db")
+DB_PATH = os.path.join(BASE_DIR, "ordoklar_v70.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30)
@@ -25,7 +25,6 @@ def init_db():
 
 init_db()
 
-# --- RUTAS ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -47,7 +46,6 @@ def index():
 # --- API ---
 @app.route('/api/personal', methods=['GET', 'POST', 'DELETE'])
 def handle_personal():
-    if not session.get('logged_in'): return jsonify([]), 401
     with get_db_connection() as conn:
         if request.method == 'POST':
             d = request.json
@@ -61,7 +59,6 @@ def handle_personal():
 
 @app.route('/api/puestos', methods=['GET', 'POST', 'DELETE'])
 def handle_puestos():
-    if not session.get('logged_in'): return jsonify([]), 401
     with get_db_connection() as conn:
         if request.method == 'POST':
             d = request.json
@@ -99,18 +96,18 @@ def handle_nov():
         res = [dict(row) for row in conn.execute("SELECT * FROM novedades").fetchall()]
     return jsonify(res)
 
-# --- TEMPLATES ---
+# --- UI HTML ---
 HTML_LOGIN = '''
 <!DOCTYPE html><html><head><title>Login</title><style>
 body{background:#000;color:#D4AF37;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;}
 .box{border:1px solid #D4AF37;padding:30px;border-radius:10px;text-align:center;}
 input{display:block;width:100%;margin:10px 0;padding:10px;background:#111;color:#fff;border:1px solid #333;}
 button{width:100%;padding:10px;background:#D4AF37;font-weight:bold;cursor:pointer;}
-</style></head><body><div class="box"><h2>ORDO KLAR</h2><form method="POST"><input name="username" placeholder="Admin"><input type="password" name="password" placeholder="Pass"><button>ENTRAR</button></form></div></body></html>
+</style></head><body><div class="box"><h2>ORDO KLAR</h2><form method="POST"><input name="username" placeholder="Usuario"><input type="password" name="password" placeholder="Clave"><button>ENTRAR</button></form></div></body></html>
 '''
 
 HTML_UI = '''
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ORDO KLAR v69</title>
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>ORDO KLAR v70</title>
 <style>
     :root { --gold: #D4AF37; --bg: #000; --card: #111; --border: #333; }
     body { background: var(--bg); color: #eee; font-family: 'Segoe UI', sans-serif; margin: 0; }
@@ -130,57 +127,45 @@ HTML_UI = '''
     .grid-pue { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
     .card-pue { background: #0a0a0a; border: 1px solid var(--border); border-top: 4px solid var(--gold); padding: 15px; border-radius: 5px; }
     .slot { margin-top: 8px; padding: 5px; background: #111; border-radius: 4px; }
+    .slot select { width: 100%; background: none; color: #fff; border: none; }
     .st-12 { background: #1b4332; } .st-F { background: #444; }
 </style>
 </head><body>
     <div class="header"><h1>ORDO <span style="color:var(--gold)">KLAR</span></h1></div>
     <nav>
-        <button onclick="tab('pla')" id="n-pla" class="active">Planilla Mensual</button>
-        <button onclick="tab('pue')" id="n-pue">Puestos / Objetivos</button>
-        <button onclick="tab('per')" id="n-per">Gestión Personal</button>
+        <button onclick="tab('pla')" id="n-pla" class="active">Planilla</button>
+        <button onclick="tab('pue')" id="n-pue">Puestos</button>
+        <button onclick="tab('per')" id="n-per">Personal</button>
     </nav>
     <div class="container">
-        <!-- PLANILLA -->
         <div id="s-pla" class="section active-section">
             <div class="box">
-                <label>Periodo:</label>
                 <select id="m-sel" onchange="render()"></select>
                 <select id="a-sel" onchange="render()"></select>
-                <button class="btn" onclick="window.print()">Imprimir Informe</button>
             </div>
             <div style="overflow-x:auto"><table><thead id="h-pla"></thead><tbody id="b-pla"></tbody></table></div>
         </div>
-
-        <!-- PUESTOS -->
         <div id="s-pue" class="section">
             <div class="box">
-                <h3>Nuevo Objetivo</h3>
-                <input id="p-nom" placeholder="Nombre Objetivo">
-                <input id="p-hor" placeholder="Horario (ej: 08-20)">
-                <input id="p-dot" type="number" value="1" style="width:60px">
-                <button class="btn" onclick="addPuesto()">+ Crear Caja</button>
+                <input id="p-nom" placeholder="Objetivo">
+                <input id="p-hor" placeholder="Horario">
+                <input id="p-dot" type="number" value="1" style="width:50px">
+                <button class="btn" onclick="addPuesto()">+ Crear Puesto</button>
             </div>
             <div id="grid-pue" class="grid-pue"></div>
         </div>
-
-        <!-- PERSONAL -->
         <div id="s-per" class="section">
             <div class="box">
-                <h3>Registrar Personal</h3>
                 <input id="per-l" placeholder="Legajo">
                 <input id="per-a" placeholder="Apellido">
                 <input id="per-n" placeholder="Nombre">
                 <button class="btn" onclick="addPersonal()">GUARDAR</button>
             </div>
             <div class="box">
-                <table>
-                    <thead><tr><th>Legajo</th><th>Apellido y Nombre</th><th>Acción</th></tr></thead>
-                    <tbody id="list-per"></tbody>
-                </table>
+                <table><thead><tr><th>Legajo</th><th>Nombre</th><th>Acción</th></tr></thead><tbody id="list-per"></tbody></table>
             </div>
         </div>
     </div>
-
 <script>
     const meses = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO","JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
     let currentTab = 'pla';
@@ -195,84 +180,82 @@ HTML_UI = '''
     }
 
     async function render(){
-        const per = await fetch('/api/personal').then(r=>r.json());
-        const pue = await fetch('/api/puestos').then(r=>r.json());
-        const nov = await fetch('/api/novedades').then(r=>r.json());
+        try {
+            const per = await fetch('/api/personal').then(r=>r.json());
+            const pue = await fetch('/api/puestos').then(r=>r.json());
+            const nov = await fetch('/api/novedades').then(r=>r.json());
 
-        // Render Personal Table
-        const lp = document.getElementById('list-per');
-        if(lp) lp.innerHTML = per.map(p=>`<tr><td>${p.legajo}</td><td>${p.apellido.toUpperCase()}, ${p.nombre}</td><td><button onclick="delPer(${p.id})" style="color:red;background:none;border:none;cursor:pointer">X</button></td></tr>`).join('');
+            // 1. Renderizar Lista Personal
+            const lp = document.getElementById('list-per');
+            if(lp) lp.innerHTML = per.map(p=>`<tr><td>${p.legajo}</td><td>${p.apellido.toUpperCase()}, ${p.nombre}</td><td><button onclick="delPer(${p.id})" style="color:red;border:none;background:none;cursor:pointer">X</button></td></tr>`).join('');
 
-        if(currentTab === 'pla'){
-            const m = parseInt(document.getElementById('m-sel').value);
-            const a = parseInt(document.getElementById('a-sel').value);
-            const dias = new Date(a, m, 0).getDate();
-            
-            let h = `<tr><th>AGENTE</th>`;
-            for(let i=1;i<=dias;i++) h += `<th>${i}</th>`;
-            h += `<th>TOT</th></tr>`;
-            document.getElementById('h-pla').innerHTML = h;
+            // 2. Renderizar Planilla
+            if(currentTab === 'pla'){
+                const m = parseInt(document.getElementById('m-sel').value);
+                const a = parseInt(document.getElementById('a-sel').value);
+                const dias = new Date(a, m, 0).getDate();
+                let h = `<tr><th>AGENTE</th>`;
+                for(let i=1;i<=dias;i++) h += `<th>${i}</th>`;
+                h += `<th>HS</th></tr>`;
+                document.getElementById('h-pla').innerHTML = h;
+                document.getElementById('b-pla').innerHTML = per.map(p=>{
+                    let hs = 0, row = `<tr><td style="text-align:left;color:var(--gold)">${p.apellido.toUpperCase()}</td>`;
+                    for(let i=1;i<=dias;i++){
+                        const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                        const n = nov.find(x=>x.personal_id==p.id && x.fecha==f) || {estado:'F'};
+                        if(n.estado=='12') hs += 12;
+                        row += `<td class="st-${n.estado}" onclick="cycleSt(this, ${p.id}, '${f}')">${n.estado}</td>`;
+                    }
+                    return row + `<td>${hs}</td></tr>`;
+                }).join('');
+            }
 
-            document.getElementById('b-pla').innerHTML = per.map(p=>{
-                let hs = 0;
-                let row = `<tr><td style="text-align:left;color:var(--gold)">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
-                for(let i=1;i<=dias;i++){
-                    const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-                    const n = nov.find(x=>x.personal_id==p.id && x.fecha==f) || {estado:'F'};
-                    if(n.estado=='12') hs += 12;
-                    row += `<td class="st-${n.estado}" onclick="cycleSt(this, ${p.id}, '${f}')">${n.estado}</td>`;
-                }
-                return row + `<td style="font-weight:bold">${hs}</td></tr>`;
-            }).join('');
-        }
-
-        if(currentTab === 'pue'){
-            document.getElementById('grid-pue').innerHTML = pue.map(p=>{
-                let selects = "";
-                for(let i=0; i<p.dotacion; i++){
-                    let opt = `<option value="">-- Seleccionar --</option>`;
-                    per.forEach(pers => {
-                        const sel = (p.asignados[i] == pers.id) ? 'selected' : '';
-                        opt += `<option value="${pers.id}" ${sel}>${pers.apellido.toUpperCase()}</option>`;
-                    });
-                    selects += `<div class="slot"><select onchange="saveAsig(${p.id}, ${i}, this.value)">${opt}</select></div>`;
-                }
-                return `<div class="card-pue"><h3>${p.nombre}</h3><p>${p.horario} hs</p>${selects}<br><button class="btn" style="background:#444;width:100%" onclick="delPue(${p.id})">Borrar</button></div>`;
-            }).join('');
-        }
+            // 3. Renderizar Puestos (Cajas)
+            if(currentTab === 'pue'){
+                document.getElementById('grid-pue').innerHTML = pue.map(p=>{
+                    let slots = "";
+                    for(let i=0; i<p.dotacion; i++){
+                        let opt = `<option value="">-- Vacante --</option>`;
+                        per.forEach(pers => {
+                            opt += `<option value="${pers.id}" ${p.asignados[i] == pers.id ? 'selected':''}>${pers.apellido.toUpperCase()}</option>`;
+                        });
+                        slots += `<div class="slot"><select onchange="saveAsig(${p.id}, ${i}, this.value)">${opt}</select></div>`;
+                    }
+                    return `<div class="card-pue"><h3>${p.nombre}</h3><p>${p.horario}</p>${slots}<br><button class="btn" style="width:100%;background:#333;color:#fff" onclick="delPue(${p.id})">Borrar</button></div>`;
+                }).join('');
+            }
+        } catch (e) { console.error("Error en render:", e); }
     }
 
     async function addPersonal(){
-        const d = {legajo: document.getElementById('per-l').value, apellido: document.getElementById('per-a').value, nombre: document.getElementById('per-n').value};
-        if(!d.legajo || !d.apellido) return alert("Faltan datos");
-        await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+        const l=document.getElementById('per-l').value, a=document.getElementById('per-a').value, n=document.getElementById('per-n').value;
+        if(!l || !a) return;
+        await fetch('/api/personal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({legajo:l,apellido:a,nombre:n})});
         document.getElementById('per-l').value=""; document.getElementById('per-a').value=""; document.getElementById('per-n').value="";
         render();
     }
 
     async function addPuesto(){
-        const d = {nombre: document.getElementById('p-nom').value, horario: document.getElementById('p-hor').value, dotacion: document.getElementById('p-dot').value};
-        if(!d.nombre) return;
-        await fetch('/api/puestos', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+        const d={nombre:document.getElementById('p-nom').value, horario:document.getElementById('p-hor').value, dotacion:document.getElementById('p-dot').value};
+        await fetch('/api/puestos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
         document.getElementById('p-nom').value=""; render();
     }
 
-    async function saveAsig(p_id, s_idx, per_id){
-        await fetch('/api/asignar', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({puesto_id:p_id, slot_index:s_idx, personal_id:per_id})});
+    async function saveAsig(pid, sidx, perid){
+        await fetch('/api/asignar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({puesto_id:pid,slot_index:sidx,personal_id:perid})});
     }
 
     async function cycleSt(td, pid, f){
-        const sts = ["F","12","ART","VAC","FE"];
-        let nxt = sts[(sts.indexOf(td.innerText)+1)%sts.length];
-        await fetch('/api/novedades', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p_id:pid, fecha:f, estado:nxt})});
+        const sts=["F","12","ART","VAC","FE"], nxt=sts[(sts.indexOf(td.innerText)+1)%sts.length];
+        await fetch('/api/novedades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({p_id:pid,fecha:f,estado:nxt})});
         render();
     }
 
-    async function delPer(id){ if(confirm('¿Baja?')) { await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); } }
-    async function delPue(id){ if(confirm('¿Borrar?')) { await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); } }
+    async function delPer(id){ if(confirm('¿Baja?')){ await fetch(`/api/personal?id=${id}`,{method:'DELETE'}); render(); } }
+    async function delPue(id){ if(confirm('¿Borrar?')){ await fetch(`/api/puestos?id=${id}`,{method:'DELETE'}); render(); } }
 
     window.onload = () => {
-        const ms = document.getElementById('m-sel'); const as = document.getElementById('a-sel');
+        const ms=document.getElementById('m-sel'), as=document.getElementById('a-sel');
         meses.forEach((m,i)=>ms.innerHTML+=`<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${m}</option>`);
         for(let i=2025;i<=2027;i++) as.innerHTML+=`<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
         render();
