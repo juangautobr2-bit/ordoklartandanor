@@ -152,6 +152,7 @@ HTML_UI = '''
     .slot { margin-top: 5px; background: #111; padding: 5px; border-radius: 4px; border: 1px solid #222; }
     .slot select { width: 100%; background: none; color: #fff; border: none; font-size: 12px; }
     .btn-del { color: #ff4444; background: none; border: none; cursor: pointer; font-size: 11px; }
+    .total-row { background: #1a1a1a; font-weight: bold; color: var(--gold); }
 </style>
 </head><body>
     <div class="header">
@@ -171,7 +172,7 @@ HTML_UI = '''
                 <select id="a-sel" onchange="render()"></select>
                 <button class="btn" onclick="window.print()">Imprimir</button>
             </div>
-            <div style="overflow-x:auto"><table><thead id="h-pla"></thead><tbody id="b-pla"></tbody></table></div>
+            <div style="overflow-x:auto"><table><thead id="h-pla"></thead><tbody id="b-pla"></tbody><tfoot id="f-pla"></tfoot></table></div>
         </div>
         <!-- PUESTOS -->
         <div id="s-pue" class="section">
@@ -220,7 +221,6 @@ HTML_UI = '''
             fetch('/api/novedades').then(r=>r.json())
         ]);
 
-        // Actualizar Lista de Personal si el elemento existe
         const listPer = document.getElementById('list-per');
         if(listPer) {
             listPer.innerHTML = per.map(p => `
@@ -236,10 +236,10 @@ HTML_UI = '''
             const a = parseInt(document.getElementById('a-sel').value);
             const dias = new Date(a, m, 0).getDate();
             
-            // Si no hay personal, mostrar aviso
             if(per.length === 0){
                 document.getElementById('h-pla').innerHTML = "<tr><th>Cargue personal en la pestaña correspondiente</th></tr>";
                 document.getElementById('b-pla').innerHTML = "";
+                document.getElementById('f-pla').innerHTML = "";
                 return;
             }
 
@@ -249,17 +249,34 @@ HTML_UI = '''
             document.getElementById('h-pla').innerHTML = h;
             
             let b = "";
+            let sumaHorasGeneral = 0;
+
             per.forEach(p=>{
-                let hs = 0; let r = `<td style="color:var(--gold)">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
+                let hs = 0; 
+                let r = `<td style="color:var(--gold)">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
                 for(let i=1;i<=dias;i++){
                     const f = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
                     const n = nov.find(x=>x.personal_id==p.id && x.fecha==f) || {estado:'F'};
                     if(n.estado=='12') hs += 12;
                     r += `<td class="st-${n.estado}" onclick="cycleSt(this, ${p.id}, '${f}')">${n.estado}</td>`;
                 }
+                sumaHorasGeneral += hs;
                 b += `<tr>${r}<td style="font-weight:bold">${hs}</td></tr>`;
             });
             document.getElementById('b-pla').innerHTML = b;
+
+            // FILAS DE TOTALES (SOLICITADAS)
+            let f = `
+                <tr class="total-row">
+                    <td colspan="${dias + 1}">CANT. DE HS TOTALES:</td>
+                    <td>${sumaHorasGeneral}</td>
+                </tr>
+                <tr class="total-row">
+                    <td colspan="${dias + 1}">CANT. DE PERSONAL:</td>
+                    <td>${per.length}</td>
+                </tr>
+            `;
+            document.getElementById('f-pla').innerHTML = f;
         }
 
         if(currentTab === 'pue'){
