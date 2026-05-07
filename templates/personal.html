@@ -1,0 +1,56 @@
+<div class="box" style="background:#121212; padding:20px; border:1px solid #333; border-radius:8px">
+    <h3 style="color:#D4AF37; margin-top:0">Alta de Personal</h3>
+    <div style="display:flex; gap:10px; flex-wrap:wrap">
+        <input id="per-l" placeholder="Legajo" style="flex:1; padding:10px; background:#000; color:#fff; border:1px solid #444">
+        <input id="per-a" placeholder="Apellido" style="flex:1; padding:10px; background:#000; color:#fff; border:1px solid #444">
+        <input id="per-n" placeholder="Nombre" style="flex:1; padding:10px; background:#000; color:#fff; border:1px solid #444">
+        <button onclick="savePer()" style="background:#D4AF37; color:#000; padding:10px 20px; font-weight:bold; border:none; cursor:pointer">REGISTRAR</button>
+    </div>
+</div>
+
+<div class="box" style="background:#0a0a0a; border:1px solid #333; margin-top:20px; padding:10px">
+    <table style="width:100%; border-collapse: collapse; color:#eee">
+        <thead style="border-bottom:2px solid #D4AF37; color:#D4AF37; text-align:left">
+            <tr>
+                <th style="padding:10px">Legajo</th>
+                <th>Apellido y Nombre</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody id="list-per"></tbody>
+    </table>
+</div>
+
+<script>
+    async function renderPersonal() {
+        const res = await fetch('/api/personal');
+        const data = await res.json();
+        document.getElementById('list-per').innerHTML = data.map(p => `
+            <tr style="border-bottom:1px solid #222">
+                <td style="padding:10px">${p.legajo}</td>
+                <td>${p.apellido.toUpperCase()}, ${p.nombre}</td>
+                <td><button onclick="delPer(${p.id})" style="color:#ff4444; background:none; border:none; cursor:pointer">Eliminar</button></td>
+            </tr>`).join('');
+    }
+
+    async function savePer() {
+        const d = {
+            legajo: document.getElementById('per-l').value,
+            apellido: document.getElementById('per-a').value,
+            nombre: document.getElementById('per-n').value
+        };
+        if(!d.legajo || !d.apellido) return alert("Legajo y Apellido son obligatorios");
+        await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)});
+        document.getElementById('per-l').value=""; document.getElementById('per-a').value=""; document.getElementById('per-n').value="";
+        renderPersonal();
+    }
+
+    async function delPer(id) {
+        if(confirm('¿Eliminar agente?')) {
+            await fetch(`/api/personal?id=${id}`, {method:'DELETE'});
+            renderPersonal();
+        }
+    }
+
+    window.initSection = renderPersonal;
+</script>
