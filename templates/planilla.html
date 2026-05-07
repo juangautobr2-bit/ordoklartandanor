@@ -1,0 +1,69 @@
+<div class="box" style="background:#121212; padding:15px; border:1px solid #333; display:flex; gap:15px; align-items:center">
+    <h3 style="color:#D4AF37; margin:0">Informe Mensual</h3>
+    <select id="m-sel" onchange="renderPlanilla()" style="padding:8px; background:#000; color:#fff"></select>
+    <select id="a-sel" onchange="renderPlanilla()" style="padding:8px; background:#000; color:#fff"></select>
+    <button onclick="window.print()" style="background:#444; color:#fff; border:none; padding:8px 15px; cursor:pointer; margin-left:auto">Imprimir PDF</button>
+</div>
+
+<div style="overflow-x:auto; margin-top:20px; background:#0a0a0a; border:1px solid #333">
+    <table style="width:100%; border-collapse: collapse; font-size:12px; color:#fff">
+        <thead id="h-pla" style="background:#1a1a1a; color:#D4AF37"></thead>
+        <tbody id="b-pla"></tbody>
+    </table>
+</div>
+
+<script>
+    const meses = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO","JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
+    
+    function setupSelects() {
+        const ms = document.getElementById('m-sel'), as = document.getElementById('a-sel');
+        if(ms.options.length > 0) return; // Evitar duplicados
+        meses.forEach((m, i) => ms.innerHTML += `<option value="${i+1}" ${i==new Date().getMonth()?'selected':''}>${m}</option>`);
+        for(let i=2025; i<=2027; i++) as.innerHTML += `<option value="${i}" ${i==new Date().getFullYear()?'selected':''}>${i}</option>`;
+    }
+
+    async function renderPlanilla() {
+        setupSelects();
+        const m = parseInt(document.getElementById('m-sel').value);
+        const a = parseInt(document.getElementById('a-sel').value);
+        const dias = new Date(a, m, 0).getDate();
+        
+        const [rPer, rNov] = await Promise.all([fetch('/api/personal'), fetch('/api/novedades')]);
+        const per = await rPer.json();
+        const nov = await rNov.json();
+
+        // Cabecera
+        let h = `<tr><th style="padding:10px; border:1px solid #333">AGENTE</th>`;
+        for(let i=1; i<=dias; i++) h += `<th style="border:1px solid #333; width:25px">${i}</th>`;
+        h += `<th style="border:1px solid #333">HS</th></tr>`;
+        document.getElementById('h-pla').innerHTML = h;
+
+        // Cuerpo
+        document.getElementById('b-pla').innerHTML = per.map(p => {
+            let hsTotal = 0;
+            let row = `<tr><td style="padding:8px; border:1px solid #333; color:#D4AF37">${p.apellido.toUpperCase()}</td>`;
+            for(let i=1; i<=dias; i++) {
+                const fecha = `${a}-${String(m).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const n = nov.find(x => x.personal_id == p.id && x.fecha == fecha) || {estado: 'F'};
+                if(n.estado == '12') hsTotal += 12;
+                
+                const color = n.estado == '12' ? '#1b4332' : (n.estado == 'F' ? 'transparent' : '#444');
+                row += `<td onclick="cycleState(this, ${p.id}, '${fecha}')" style="border:1px solid #333; text-align:center; cursor:pointer; background:${color}">${n.estado}</td>`;
+            }
+            return row + `<td style="border:1px solid #333; text-align:center; font-weight:bold">${hsTotal}</td></tr>`;
+        }).join('');
+    }
+
+    async function cycleState(td, pid, fecha) {
+        const sts = ["F", "12", "ART", "VAC", "FE"];
+        const nxt = sts[(sts.indexOf(td.innerText) + 1) % sts.length];
+        await fetch('/api/novedades', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({p_id: pid, fecha: fecha, estado: nxt})
+        });
+        renderPlanilla();
+    }
+
+    window.initSection = renderPlanilla;
+</script>
