@@ -326,4 +326,4 @@ HTML_UI = '''
         }
     };
 </script>
-</body></html>
+</body></html>'''
