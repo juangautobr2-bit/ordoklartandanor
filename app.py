@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from datetime import datetime
 from flask import Flask, render_template_string, request, jsonify, session, redirect, url_for
 
 app = Flask(__name__)
@@ -18,6 +19,7 @@ def init_db():
         conn.execute('CREATE TABLE IF NOT EXISTS personal (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, apellido TEXT, legajo TEXT UNIQUE)')
         conn.execute('CREATE TABLE IF NOT EXISTS puestos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, horario TEXT, dotacion INTEGER)')
         conn.execute('CREATE TABLE IF NOT EXISTS novedades (id INTEGER PRIMARY KEY AUTOINCREMENT, personal_id INTEGER, fecha TEXT, estado TEXT, UNIQUE(personal_id, fecha))')
+        conn.execute('CREATE TABLE IF NOT EXISTS informes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, fecha_generado TEXT)')
         conn.execute('''CREATE TABLE IF NOT EXISTS asignaciones 
                         (puesto_id INTEGER, slot_index INTEGER, personal_id INTEGER, 
                         PRIMARY KEY(puesto_id, slot_index))''')
@@ -89,6 +91,21 @@ def handle_puestos():
             puestos.append(p)
     return jsonify(puestos)
 
+@app.route('/api/informes', methods=['GET', 'POST', 'DELETE'])
+def handle_informes():
+    if not session.get('logged_in'): return jsonify([]), 401
+    with get_db_connection() as conn:
+        if request.method == 'POST':
+            d = request.json
+            conn.execute("INSERT INTO informes (nombre, fecha_generado) VALUES (?, ?)", 
+                         (d['nombre'], datetime.now().strftime("%Y-%m-%d %H:%M")))
+            conn.commit()
+        elif request.method == 'DELETE':
+            conn.execute("DELETE FROM informes WHERE id=?", (request.args.get('id'),))
+            conn.commit()
+        res = [dict(row) for row in conn.execute("SELECT * FROM informes ORDER BY id DESC").fetchall()]
+    return jsonify(res)
+
 @app.route('/api/asignar', methods=['POST'])
 def asignar_personal():
     if not session.get('logged_in'): return jsonify({"status": "error"}), 401
@@ -153,6 +170,7 @@ HTML_UI = '''
     .slot select { width: 100%; background: none; color: #fff; border: none; font-size: 12px; }
     .btn-del { color: #ff4444; background: none; border: none; cursor: pointer; font-size: 11px; }
     .total-row { background: #1a1a1a; font-weight: bold; color: var(--gold); }
+    @media print { nav, .header, .box, .btn-del, .logout { display: none; } .container { padding: 0; } }
 </style>
 </head><body>
     <div class="header">
@@ -163,6 +181,7 @@ HTML_UI = '''
         <button id="n-pla" class="active" onclick="tab('pla')">Planilla Mensual</button>
         <button id="n-pue" onclick="tab('pue')">Puestos</button>
         <button id="n-per" onclick="tab('per')">Personal</button>
+        <button id="n-arc" onclick="tab('arc')">Archivos</button>
     </nav>
     <div class="container">
         <!-- PLANILLA -->
@@ -170,7 +189,7 @@ HTML_UI = '''
             <div class="box">
                 <select id="m-sel" onchange="render()"></select>
                 <select id="a-sel" onchange="render()"></select>
-                <button class="btn" onclick="window.print()">Imprimir</button>
+                <button class="btn" onclick="imprimirPlanilla()">Generar e Imprimir</button>
             </div>
             <div style="overflow-x:auto"><table><thead id="h-pla"></thead><tbody id="b-pla"></tbody><tfoot id="f-pla"></tfoot></table></div>
         </div>
@@ -200,6 +219,16 @@ HTML_UI = '''
                 </table>
             </div>
         </div>
+        <!-- ARCHIVOS -->
+        <div id="s-arc" class="section">
+            <div class="box">
+                <h3>Historial de Informes Generados</h3>
+                <table>
+                    <thead><tr><th>Nombre Informe</th><th>Fecha Generación</th><th>Acción</th></tr></thead>
+                    <tbody id="list-informes"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 <script>
     const meses = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO","JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
@@ -215,10 +244,11 @@ HTML_UI = '''
     }
 
     async function render(){
-        const [per, pue, nov] = await Promise.all([
+        const [per, pue, nov, informes] = await Promise.all([
             fetch('/api/personal').then(r=>r.json()), 
             fetch('/api/puestos').then(r=>r.json()),
-            fetch('/api/novedades').then(r=>r.json())
+            fetch('/api/novedades').then(r=>r.json()),
+            fetch('/api/informes').then(r=>r.json())
         ]);
 
         const listPer = document.getElementById('list-per');
@@ -228,6 +258,16 @@ HTML_UI = '''
                     <td style="color:var(--gold)">${p.legajo}</td>
                     <td>${p.apellido.toUpperCase()}, ${p.nombre}</td>
                     <td><button class="btn-del" onclick="delPer(${p.id})">ELIMINAR</button></td>
+                </tr>`).join('');
+        }
+
+        const listInf = document.getElementById('list-informes');
+        if(listInf) {
+            listInf.innerHTML = informes.map(i => `
+                <tr>
+                    <td>${i.nombre}</td>
+                    <td>${i.fecha_generado}</td>
+                    <td><button class="btn-del" onclick="delInforme(${i.id})">ELIMINAR</button></td>
                 </tr>`).join('');
         }
 
@@ -250,7 +290,6 @@ HTML_UI = '''
             
             let b = "";
             let sumaHorasGeneral = 0;
-
             per.forEach(p=>{
                 let hs = 0; 
                 let r = `<td style="color:var(--gold)">${p.apellido.toUpperCase()}, ${p.nombre}</td>`;
@@ -265,18 +304,9 @@ HTML_UI = '''
             });
             document.getElementById('b-pla').innerHTML = b;
 
-            // FILAS DE TOTALES (SOLICITADAS)
-            let f = `
-                <tr class="total-row">
-                    <td colspan="${dias + 1}">CANT. DE HS TOTALES:</td>
-                    <td>${sumaHorasGeneral}</td>
-                </tr>
-                <tr class="total-row">
-                    <td colspan="${dias + 1}">CANT. DE PERSONAL:</td>
-                    <td>${per.length}</td>
-                </tr>
-            `;
-            document.getElementById('f-pla').innerHTML = f;
+            document.getElementById('f-pla').innerHTML = `
+                <tr class="total-row"><td colspan="${dias+1}">CANT. DE PERSONAL</td><td>${per.length}</td></tr>
+                <tr class="total-row"><td colspan="${dias+1}">CANT. DE HS TOTALES</td><td>${sumaHorasGeneral}</td></tr>`;
         }
 
         if(currentTab === 'pue'){
@@ -295,21 +325,25 @@ HTML_UI = '''
         }
     }
 
+    async function imprimirPlanilla(){
+        const m = meses[document.getElementById('m-sel').value - 1];
+        const a = document.getElementById('a-sel').value;
+        await fetch('/api/informes', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ nombre: `Planilla ${m} ${a}` })
+        });
+        window.print();
+        render();
+    }
+
     async function addPersonal(){
         const l = document.getElementById('per-l').value;
         const a = document.getElementById('per-a').value;
         const n = document.getElementById('per-n').value;
         if(!l || !a) return alert("Complete los datos");
-        
-        await fetch('/api/personal', {
-            method:'POST', 
-            headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({ legajo: l, apellido: a, nombre: n })
-        });
-        
-        document.getElementById('per-l').value=""; 
-        document.getElementById('per-a').value=""; 
-        document.getElementById('per-n').value="";
+        await fetch('/api/personal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({legajo:l, apellido:a, nombre:n})});
+        document.getElementById('per-l').value=""; document.getElementById('per-a').value=""; document.getElementById('per-n').value="";
         render();
     }
 
@@ -333,6 +367,7 @@ HTML_UI = '''
 
     async function delPue(id){ if(confirm('¿Borrar objetivo?')) { await fetch(`/api/puestos?id=${id}`, {method:'DELETE'}); render(); } }
     async function delPer(id){ if(confirm('¿Dar de baja?')) { await fetch(`/api/personal?id=${id}`, {method:'DELETE'}); render(); } }
+    async function delInforme(id){ if(confirm('¿Eliminar registro de informe?')) { await fetch(`/api/informes?id=${id}`, {method:'DELETE'}); render(); } }
 
     window.onload = () => {
         const ms = document.getElementById('m-sel'); const as = document.getElementById('a-sel');
